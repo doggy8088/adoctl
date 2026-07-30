@@ -20,6 +20,10 @@ tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "sy
 url = "2"
 webbrowser = "1"
 
+[target.'cfg(all(target_os = "linux", target_env = "musl"))'.dependencies]
+# 強制 keyring 的間接 D-Bus 相依套件以 musl toolchain 建置，避免連結 glibc 系統函式庫。
+dbus = { version = "0.9", features = ["vendored"] }
+
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"

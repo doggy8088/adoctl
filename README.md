@@ -1,6 +1,7 @@
 # adoctl
 
-[![持續整合](https://github.com/doggy8088/ado-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/doggy8088/ado-manager/actions/workflows/ci.yml)
+[![持續整合](https://github.com/doggy8088/adoctl/actions/workflows/ci.yml/badge.svg)](https://github.com/doggy8088/adoctl/actions/workflows/ci.yml)
+[![發布版本](https://github.com/doggy8088/adoctl/actions/workflows/release.yml/badge.svg)](https://github.com/doggy8088/adoctl/actions/workflows/release.yml)
 
 `adoctl` 是以 Rust 開發的跨平台 Azure DevOps 管理 CLI，目標是讓常見的使用者、授權與專案成員管理工作可以用一致、可測試、可自動化的方式執行。
 
@@ -419,3 +420,41 @@ cargo xtask package --all-default-targets
 - `aarch64-apple-darwin`
 
 跨平台編譯可能需要先安裝對應 Rust target、linker 或 cross compilation toolchain。
+
+* * *
+
+## 版本紀錄與發布
+
+所有重要變更都記錄於 [CHANGELOG.md](CHANGELOG.md)。開發期間先把內容加入「尚未發布」段落；準備發布時，建立對應版本標題並填入發布日期：
+
+```markdown
+## [0.2.0] - 2026-08-15
+
+### 新增
+
+- 說明這個版本新增的功能。
+```
+
+發布前必須同步更新 `Cargo.toml` 的 `package.version`。標籤固定使用 `v<版本>`，而且必須與 Cargo 版本完全一致：
+
+```sh
+git push origin main
+git tag -a v0.1.0 -m "發布 adoctl v0.1.0"
+git push origin v0.1.0
+```
+
+推送 `v*` 標籤後，GitHub Actions 會：
+
+1. 驗證標籤、Cargo 版本及 CHANGELOG 版本標題一致。
+2. 執行 `cargo xtask ci` 完整品質檢查。
+3. 為六個預設 target 建立封裝：
+   - Windows x86_64。
+   - Linux GNU x86_64。
+   - Linux musl x86_64。
+   - Linux GNU ARM64。
+   - macOS Intel。
+   - macOS Apple Silicon。
+4. 驗證封裝內的 `adoctl --version`。
+5. 產生 `SHA256SUMS`，並使用 CHANGELOG 對應版本內容建立 GitHub Release。
+
+含預發布識別碼的 Cargo 版本，例如 `0.2.0-beta.1`，應使用 `v0.2.0-beta.1` 標籤；GitHub Release 會自動標示為 prerelease。

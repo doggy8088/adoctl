@@ -183,7 +183,7 @@
 - 最終驗證結果：
   - 本機 YAML 語法解析與 `git diff --check` 通過。
   - 本機 `cargo xtask ci` 通過，包含格式檢查、Clippy 零警告與 50 項測試。
-  - GitHub Actions run [`30558727576`](https://github.com/doggy8088/ado-manager/actions/runs/30558727576) 已在 Ubuntu runner 通過全部步驟，執行時間 2 分 9 秒。
+  - GitHub Actions run [`30558727576`](https://github.com/doggy8088/adoctl/actions/runs/30558727576) 已在 Ubuntu runner 通過全部步驟，執行時間 2 分 9 秒。
 
 * * *
 
@@ -239,3 +239,77 @@
   - `git diff --check` 通過。
   - `cargo xtask test` 通過，包含格式檢查、Clippy 零警告與全部 55 項測試。
   - 五種可直接設定的 access level 均已驗證 REST 7.1 JSON Patch request shape 與 wrapped response。
+
+* * *
+
+## CHANGELOG 與標籤式 GitHub Release
+
+- 新增 `CHANGELOG.md`：
+  - 採用 Keep a Changelog 的段落結構與語意化版本編號。
+  - 保留「尚未發布」段落，供後續功能、變更、修正、移除及安全性項目持續累積。
+  - 建立 `0.1.0` 初始版本紀錄，涵蓋 CLI、認證、使用者、專案、代理程式集區、測試、封裝與 CI。
+- 新增 `.github/workflows/release.yml`：
+  - 只在推送 `v*` 標籤時觸發，不擴大既有 `ci.yml` 的觸發條件或寫入權限。
+  - 發布前先確認標籤必須等於 `v` 加上 `Cargo.toml` 的 `package.version`。
+  - 要求 CHANGELOG 存在 `## [版本] - 日期` 標題，避免發布沒有人工整理版本紀錄的標籤。
+  - 在建立封裝前執行 `cargo xtask ci`，維持與本機及既有 CI 相同的格式、Clippy 與測試入口。
+  - 使用 GitHub-hosted 原生架構 runner，為六個既有預設 target 建立封裝：
+    - `x86_64-pc-windows-msvc`
+    - `x86_64-unknown-linux-gnu`
+    - `x86_64-unknown-linux-musl`
+    - `aarch64-unknown-linux-gnu`
+    - `x86_64-apple-darwin`
+    - `aarch64-apple-darwin`
+  - Windows 產物使用 ZIP；Linux 與 macOS 產物使用 tar.gz。每個封裝包含 `adoctl`、`README.md` 與 `CHANGELOG.md`。
+  - 每個 runner 都會執行封裝內的 `adoctl --version`，確認 binary 版本與標籤一致。
+  - 最終 job 合併六個 artifact、產生 `SHA256SUMS`，再從 CHANGELOG 擷取對應版本內容作為 release notes。
+  - 含預發布識別碼的版本會建立 GitHub prerelease；穩定版本則依 GitHub 預設規則標示 Latest。
+- 權限與供應鏈決策：
+  - workflow 預設只有 `contents: read`；只有最終 release job 取得 `contents: write` 與讀取同次 workflow artifact 所需的 `actions: read`。
+  - 使用 runner 內建的 GitHub CLI 執行 `gh release create --verify-tag`，禁止 workflow 在標籤不存在時代為建立標籤。
+  - `actions/checkout` 固定至 `v6.0.2` commit SHA。
+  - `actions/upload-artifact` 固定至 `v7.0.1` commit SHA。
+  - `actions/download-artifact` 固定至 `v8.0.1` commit SHA。
+- Linux musl 技術處理：
+  - `keyring` 的 Linux 原生後端會間接依賴 `libdbus-sys`。
+  - GNU Linux 使用 runner 的 `libdbus-1-dev`；musl 若誤用該套件，會把 glibc 系統函式庫帶入 musl target。
+  - `Cargo.toml` 因此只針對 `target_os=linux` 且 `target_env=musl` 啟用 `dbus/vendored`，由 `libdbus-sys` 以 musl C toolchain 編譯內含的 libdbus。
+- README 更新：
+  - 新增 release workflow badge。
+  - 補上 CHANGELOG 維護格式、版本同步、annotated tag 指令、六平台封裝及 prerelease 規則。
+- 官方查核來源：
+  - GitHub Actions `push.tags` 與 workflow syntax：
+    - <https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax>
+  - GitHub-hosted runner 與架構標籤：
+    - <https://docs.github.com/en/actions/reference/runners/github-hosted-runners>
+  - GitHub CLI release 建立與 `--verify-tag`：
+    - <https://cli.github.com/manual/gh_release_create>
+- 受影響檔案：
+  - `.github/workflows/release.yml`
+  - `CHANGELOG.md`
+  - `Cargo.toml`
+  - `Cargo.lock`
+  - `README.md`
+  - `DEVELOPMENT_LOG.md`
+  - `DEBUGGING_NOTES.md`
+- 驗證結果：
+  - `actionlint 1.7.12` 通過 `ci.yml` 與 `release.yml`；下載的 actionlint 壓縮檔已先依官方 release checksum 驗證。
+  - Ruby YAML parser 通過兩個 workflow 的基本語法解析。
+  - `cargo tree --target x86_64-unknown-linux-musl -e features -i libdbus-sys` 確認 musl target 已啟用 `libdbus-sys/vendored`。
+  - `cargo xtask ci` 通過，包含格式、Clippy 零警告與全部 55 項測試。
+  - 本機 `aarch64-apple-darwin` release binary、tar.gz 內容、`adoctl 0.1.0` 版本及 CHANGELOG release notes 擷取均已驗證。
+  - 六平台 matrix 與 GitHub Release 建立必須在 workflow 已存在於遠端標籤所指提交後，由實際 tag push 驗證；本次未建立或推送標籤，因此沒有宣稱已完成遠端 release run。
+
+* * *
+
+## GitHub repository 重新命名
+
+- GitHub repository 由 `doggy8088/ado-manager` 重新命名為 `doggy8088/adoctl`，使 repository 名稱與 CLI binary、Cargo package 一致。
+- repository 維持私有、owner 與 repository ID 不變，預設分支仍為 `main`。
+- 本機 `origin` fetch／push URL 更新為 `https://github.com/doggy8088/adoctl.git`。
+- 同步更新 README workflow badge、CHANGELOG compare／release 連結及開發紀錄中的歷史 Actions run URL。
+- 本機 workspace 目錄仍為 `/Users/will/projects/ado-manager`；Git repository 重新命名不要求同時搬移本機目錄，避免在進行中的工作階段破壞 workspace 路徑。
+- 驗證結果：
+  - GitHub repository metadata 回報 `doggy8088/adoctl`，repository ID 維持 `R_kgDOToZB2Q`。
+  - `git ls-remote --exit-code origin HEAD` 成功取得遠端 HEAD `6a0f1bcaa2d0946b7b06e4a6535a892c66079350`。
+  - 專案檔案不再包含重新命名前的完整 GitHub URL。

@@ -113,3 +113,43 @@
   - `earlyAdopter` 是 Microsoft 內部值；`none` 不是獨立層級；`professional` 查無足夠官方資料說明現行權益，不得自行推定。
   - Visual Studio 與 GitHub Enterprise 權益會由服務驗證；CLI request 成功不能被描述為建立訂閱。
   - 群組規則或外部訂閱可能影響最終有效層級，降低直接指派不保證立即降低有效權益。
+
+* * *
+
+## GitHub Release 與跨平台封裝注意事項
+
+- 觸發條件：
+  - 既有 `ci.yml` 的 `push.branches` 只包含 `main`，單獨推送 tag 不會執行該 workflow。
+  - release workflow 必須自行執行 `cargo xtask ci`，不可假設標籤所指提交已經通過另一個 workflow。
+  - `push.tags: ["v*"]` 是 glob filter，不是語意化版本 regex；因此 workflow 內仍需比對 `GITHUB_REF_NAME` 與 Cargo package version。
+- 版本一致性：
+  - 發布前必須同時更新 `Cargo.toml`、`Cargo.lock` 與 `CHANGELOG.md`。
+  - 標籤格式固定為 `v<package.version>`；任何不一致都應在建立封裝前失敗。
+  - `gh release create --verify-tag` 很重要，否則 GitHub CLI 在找不到標籤時可以自動建立標籤，可能讓錯誤版本被發布。
+- 權限隔離：
+  - 品質檢查與封裝 job 不需要寫入 repository，應維持 `contents: read`。
+  - 只有建立 GitHub Release 的 job 需要 `contents: write`。
+  - 不應把 release workflow 的寫入權限直接移到既有 pull request CI，避免不受信任的變更取得多餘權限。
+- 跨平台 runner：
+  - `macos-latest` 目前是 ARM64 runner；Intel 產物必須使用 GitHub 官方的 `macos-15-intel`。
+  - ARM64 GNU Linux 產物使用 `ubuntu-24.04-arm` 原生建置，避免額外維護交叉 linker。
+  - Windows 使用 PowerShell `Compress-Archive`；Unix runner 使用 `tar`，不要假設所有 runner 具有相同 shell 或封裝命令。
+- musl 與 D-Bus：
+  - Ubuntu 的 `libdbus-1-dev` 是 GNU／glibc 系統函式庫，不能直接當成 musl target 的連結輸入。
+  - `dbus` crate 的 `vendored` feature 會讓 `libdbus-sys` 透過 `cc` 使用目標 C compiler 建置內含 libdbus。
+  - musl runner 仍需安裝 `musl-tools`，提供 `musl-gcc`；只啟用 Rust target 並不足以編譯 C 相依套件。
+  - 維護 Cargo feature 時，應以 `cargo tree --target x86_64-unknown-linux-musl -e features -i libdbus-sys` 確認 vendored feature 沒有被移除。
+- artifact 與 release：
+  - matrix job 只能各自存取自己的工作目錄，必須先使用 workflow artifact 集中產物，再由單一 release job 建立 GitHub Release。
+  - release 資產本身已是 ZIP 或 tar.gz；workflow artifact 只是 job 間傳遞媒介，不應把 Actions artifact 的下載網址當成永久發布網址。
+  - `SHA256SUMS` 必須對最終上傳的壓縮檔計算，不能對封裝前 binary 計算後卻使用相同檔名宣稱可驗證 release asset。
+  - CHANGELOG release notes 擷取必須在下一個版本標題或 Markdown reference link definition 前停止，避免把檔尾連結定義誤放進 GitHub Release 說明。
+
+* * *
+
+## GitHub repository 重新命名注意事項
+
+- GitHub 會保留舊 repository URL 的重新導向，但本機 remote、workflow badge、CHANGELOG compare link 與 release link 不應長期依賴重新導向。
+- repository 重新命名後，應以新 URL 執行 `git remote set-url origin <新網址>`，再用 `git ls-remote --exit-code origin HEAD` 驗證 fetch 路徑。
+- GitHub repository 的重新命名不會自動重新命名本機 checkout 資料夾；兩者沒有 Git 技術上的相依關係。
+- 若未來搬移本機資料夾，必須先結束所有依賴舊 workspace 絕對路徑的程序，再由檔案系統層級搬移；不可在 agent 仍以舊 cwd 運作時直接改名。
