@@ -30,6 +30,15 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: 安裝 Linux 系統相依套件
+        run: |
+          sudo apt-get update
+          sudo apt-get install \
+            --yes \
+            --no-install-recommends \
+            libdbus-1-dev \
+            pkg-config
+
       - name: 安裝 Rust stable toolchain
         run: |
           rustup toolchain install stable \
