@@ -153,3 +153,34 @@
   - `make -n run ARGS='--help'` 與 `make -n package TARGET=x86_64-apple-darwin` 的參數轉送正確。
   - `make install LOCAL_INSTALL_ROOT=<暫存目錄>` 實際安裝到 `<暫存目錄>/bin/adoctl`，執行 `adoctl --version` 回傳 `adoctl 0.1.0`。
   - `make test` 通過，包含格式檢查、Clippy 零警告與全部 workspace 測試。
+
+## GitHub Actions 持續整合
+
+- 新增 `.github/workflows/ci.yml`，在 `main` push、pull request 與手動觸發時執行。
+- 技術決策與理由：
+  - CI 直接執行 `cargo xtask ci`，與本機 `make ci`、`make test` 共用相同的格式、Clippy 與測試流程，避免本機與遠端檢查分歧。
+  - 使用 GitHub-hosted `ubuntu-latest` runner 與 Rust stable toolchain，明確安裝 `rustfmt` 與 `clippy` 元件。
+  - `actions/checkout` 採用官方 `v6.0.2` 對應的完整 commit SHA，符合 GitHub 對不可變 action 版本的安全建議。
+  - checkout 設定 `persist-credentials: false`，CI 不需要在工作目錄保留 GitHub 認證。
+  - Ubuntu runner 明確安裝 `libdbus-1-dev` 與 `pkg-config`，滿足 `keyring` Linux 原生持久化後端經由 `libdbus-sys` 使用的系統建置相依套件。
+  - workflow 權限只保留 `contents: read`，不提供寫入 repository、pull request、package 或其他資源的權限。
+  - concurrency 依 workflow 與 ref 分組，新提交會取消同分支尚未完成的舊 run，減少不必要的 runner 使用量。
+  - 設定 20 分鐘 timeout，避免 runner 因非預期卡住而無限占用。
+- 受影響檔案：
+  - `.github/workflows/ci.yml`
+  - `README.md`
+  - `DEVELOPMENT_LOG.md`
+  - `DEBUGGING_NOTES.md`
+- 測試策略：
+  - 本機解析 YAML 並檢查 workflow 必要欄位。
+  - 執行 `cargo xtask ci`，確認與 workflow 使用的命令一致。
+  - 推送至 GitHub 後監看實際 Actions run，確認 checkout、toolchain 與完整 CI job 成功。
+- 初次 GitHub 驗證：
+  - run `30558515298` 已通過 checkout、Rust toolchain 安裝與版本檢查，但在 `cargo xtask ci` 的 Clippy 建置階段失敗。
+  - 錯誤來自 `libdbus-sys v0.2.7`，其 build script 透過 `pkg-config` 找不到 Ubuntu 的 `dbus-1` 開發檔案。
+  - 本機 macOS 使用不同的 `keyring` 平台後端，因此本機完整測試成功仍無法涵蓋此 Linux runner 相依性。
+  - workflow 已補上 `libdbus-1-dev` 與 `pkg-config` 安裝步驟。
+- 最終驗證結果：
+  - 本機 YAML 語法解析與 `git diff --check` 通過。
+  - 本機 `cargo xtask ci` 通過，包含格式檢查、Clippy 零警告與 50 項測試。
+  - GitHub Actions run [`30558727576`](https://github.com/doggy8088/ado-manager/actions/runs/30558727576) 已在 Ubuntu runner 通過全部步驟，執行時間 2 分 9 秒。

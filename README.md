@@ -1,5 +1,7 @@
 # adoctl
 
+[![持續整合](https://github.com/doggy8088/ado-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/doggy8088/ado-manager/actions/workflows/ci.yml)
+
 `adoctl` 是以 Rust 開發的跨平台 Azure DevOps 管理 CLI，目標是讓常見的使用者、授權與專案成員管理工作可以用一致、可測試、可自動化的方式執行。
 
 所有 CLI 說明、錯誤與互動訊息皆以繁體中文撰寫。
@@ -125,6 +127,14 @@ make package-all
 `make test` 與 `make ci` 都沿用 `cargo xtask` 的品質檢查流程；`make test-unit` 只執行 workspace 測試。
 
 `make install` 會建置並安裝至 `~/.local/bin/adoctl`。若 shell 找不到 `adoctl`，請確認 `~/.local/bin` 已加入 `PATH`。
+
+GitHub Actions 會在下列情況執行相同的 `cargo xtask ci` 品質檢查：
+
+- 推送至 `main`。
+- 建立或更新 pull request。
+- 從 GitHub Actions 頁面手動觸發。
+
+CI 使用 Ubuntu runner 與 Rust stable toolchain，依序檢查格式、執行 Clippy 並跑完全部 workspace 測試。
 
 ## 打包
 

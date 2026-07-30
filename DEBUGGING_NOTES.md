@@ -72,3 +72,21 @@
 - `make package` 必須先檢查 `TARGET`，避免空值被傳給 xtask 後產生不明確錯誤。
 - `make install` 應使用 `cargo install --root ~/.local` 的等效路徑，而不是只指定 `--root ~/.local/bin`；Cargo 會自動在 root 下建立 `bin`，若多加一層會錯誤安裝到 `~/.local/bin/bin`。
 - `ARGS`、`TARGET` 與 `LOCAL_INSTALL_ROOT` 只在使用者明確執行對應 target 時轉送；Makefile 不應內嵌 organization、認證資訊或敏感資料。
+
+## GitHub Actions 維護注意事項
+
+- CI 應呼叫 `cargo xtask ci`，不要在 workflow 內重複維護 `cargo fmt`、`cargo clippy` 與 `cargo test` 細節。
+- action 應固定至官方 repository 的完整 commit SHA；旁註保留對應語意版本，方便日後稽核與更新。
+- Rust stable toolchain 必須明確安裝 `rustfmt` 與 `clippy`，不可假設 runner 預載狀態永遠一致。
+- `persist-credentials: false` 適用於只讀 CI；若未來新增需要推送 commit 或 tag 的 release workflow，應另外設計最小必要權限，不可直接擴大現有 CI 權限。
+- GitHub Actions 使用 YAML 1.2 語意；若以採用 YAML 1.1 的一般 parser 驗證，頂層 `on` 可能被誤判為布林值，應使用 actionlint 或 GitHub 實際 workflow parser 確認。
+- 遠端失敗排查順序：
+  - 先用 `gh run list` 找到 workflow run。
+  - 再以 `gh run view <run-id> --log-failed` 讀取失敗步驟。
+  - 根據實際 log 修正，不可只憑本機成功推定 runner 環境相同。
+- 初次 GitHub Actions run `30558515298` 的失敗紀錄：
+  - 問題症狀：checkout、Rust stable、`rustfmt` 與 `clippy` 安裝皆成功，但 `cargo xtask ci` 在 Clippy 編譯相依套件時失敗。
+  - 根因：`keyring` 的 Linux 原生持久化後端會建置 `libdbus-sys`；GitHub-hosted Ubuntu runner 沒有預先提供 `dbus-1` 開發檔案，導致其 build script 無法透過 `pkg-config` 找到 `dbus-1.pc`。
+  - 修正方式：在執行 Rust 品質檢查前，以 apt 安裝 `libdbus-1-dev` 與 `pkg-config`。
+  - 平台差異：macOS 本機使用 Apple 原生 credential store，不會建置相同的 Linux D-Bus 路徑；因此 CI 涉及原生系統相依套件時，必須以實際 runner 結果為準。
+  - 驗證結果：修正後的 GitHub Actions run `30558727576` 在 Ubuntu runner 通過全部步驟。
