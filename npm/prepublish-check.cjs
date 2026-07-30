@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 'use strict';
 
-const { spawnSync } = require('node:child_process');
-const { existsSync, readFileSync } = require('node:fs');
+const { readFileSync } = require('node:fs');
+const { request } = require('node:https');
 const { join } = require('node:path');
-const { ALL_TARGETS, sha256 } = require('./prepare-package.cjs');
-const { binaryName, cargoTarget } = require('./platform.cjs');
+const { URL } = require('node:url');
+const { artifactName, releaseBaseUrl } = require('./download.cjs');
+const { TARGETS } = require('./platform.cjs');
 
 const PACKAGE_ROOT = join(__dirname, '..');
-const NATIVE_DIR = join(__dirname, 'native');
+const MAX_REDIRECTS = 5;
 
 function cargoVersion() {
   const cargoToml = readFileSync(join(PACKAGE_ROOT, 'Cargo.toml'), 'utf8');
@@ -20,7 +21,7 @@ function cargoVersion() {
   return version;
 }
 
-function verifyPackage({ runCurrentBinary = true } = {}) {
+function verifyMetadata() {
   const packageJson = require(join(PACKAGE_ROOT, 'package.json'));
   if (packageJson.name !== 'adoctl') {
     throw new Error('package.json 的套件名稱必須是 adoctl。');
@@ -39,64 +40,106 @@ function verifyPackage({ runCurrentBinary = true } = {}) {
   if (packageJson.publishConfig?.access !== 'public') {
     throw new Error('package.json 的 publishConfig.access 必須是 public。');
   }
-
-  const manifestPath = join(NATIVE_DIR, 'MANIFEST.json');
-  if (!existsSync(manifestPath)) {
-    throw new Error('找不到 npm/native/MANIFEST.json；請先準備 GitHub Release 資產。');
+  if (packageJson.scripts?.postinstall) {
+    throw new Error('npm 12 預設阻擋 install scripts；package.json 不應設定 postinstall。');
   }
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  if (manifest.version !== packageJson.version) {
-    throw new Error(`原生執行檔 manifest 版本 ${manifest.version} 與 npm 版本不一致。`);
-  }
-  const actualTargets = Object.keys(manifest.targets ?? {}).sort();
-  if (JSON.stringify(actualTargets) !== JSON.stringify([...ALL_TARGETS].sort())) {
-    throw new Error('原生執行檔 manifest 未完整涵蓋六個支援 target。');
-  }
-
-  for (const target of ALL_TARGETS) {
-    const entry = manifest.targets[target];
-    const binary = join(NATIVE_DIR, target, binaryName(target));
-    if (!existsSync(binary)) {
-      throw new Error(`找不到 ${target} 的原生執行檔。`);
-    }
-    const actualChecksum = sha256(binary);
-    if (actualChecksum !== entry.binarySha256) {
-      throw new Error(`${target} 原生執行檔的 SHA-256 與 manifest 不一致。`);
-    }
-  }
-
-  if (runCurrentBinary) {
-    const target = cargoTarget();
-    const binary = join(NATIVE_DIR, target, binaryName(target));
-    const result = spawnSync(binary, ['--version'], { encoding: 'utf8' });
-    if (result.error) throw result.error;
-    if (result.status !== 0) {
-      throw new Error(`目前平台的 adoctl --version 失敗，結束碼為 ${result.status}。`);
-    }
-    const expected = `adoctl ${packageJson.version}`;
-    if (result.stdout.trim() !== expected) {
-      throw new Error(`adoctl 版本不一致：預期 ${expected}，實際 ${result.stdout.trim()}。`);
-    }
-  }
-
-  return manifest;
+  return packageJson.version;
 }
 
-function main() {
-  const manifest = verifyPackage();
-  console.log(`npm 發布檢查通過：adoctl ${manifest.version}，共 ${ALL_TARGETS.length} 個 target。`);
+function expectedReleaseUrls(version) {
+  const targets = [...new Set(Object.values(TARGETS))].sort();
+  const baseUrl = releaseBaseUrl(version);
+  return [
+    ...targets.map((target) => `${baseUrl}/${artifactName(target, version)}`),
+    `${baseUrl}/SHA256SUMS`,
+  ];
+}
+
+function checkUrl(url, redirectsRemaining = MAX_REDIRECTS) {
+  return new Promise((resolve) => {
+    const req = request(
+      url,
+      {
+        method: 'HEAD',
+        headers: { 'User-Agent': 'adoctl-npm-prepublish' },
+      },
+      (response) => {
+        const { statusCode, headers } = response;
+        response.resume();
+
+        if (
+          statusCode >= 300 &&
+          statusCode < 400 &&
+          headers.location &&
+          redirectsRemaining > 0
+        ) {
+          const nextUrl = new URL(headers.location, url).toString();
+          checkUrl(nextUrl, redirectsRemaining - 1).then((result) =>
+            resolve({ ...result, url }),
+          );
+          return;
+        }
+
+        resolve({
+          url,
+          ok: statusCode >= 200 && statusCode < 300,
+          statusCode,
+        });
+      },
+    );
+    req.setTimeout(30_000, () => req.destroy(new Error(`檢查逾時：${url}`)));
+    req.on('error', (error) => resolve({ url, ok: false, error: error.message }));
+    req.end();
+  });
+}
+
+async function verifyReleaseAssets({
+  version = verifyMetadata(),
+  check = checkUrl,
+  retries = Number.parseInt(process.env.ADOCTL_RELEASE_ASSET_RETRIES ?? '1', 10),
+  retryDelayMs = Number.parseInt(
+    process.env.ADOCTL_RELEASE_ASSET_RETRY_DELAY_MS ?? '1000',
+    10,
+  ),
+} = {}) {
+  const urls = expectedReleaseUrls(version);
+  let failures = [];
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    const results = await Promise.all(urls.map((url) => check(url)));
+    failures = results.filter((result) => !result.ok);
+    if (failures.length === 0) return urls;
+    if (attempt < retries) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+  }
+
+  const details = failures.map((failure) => {
+    const reason = failure.statusCode ? `HTTP ${failure.statusCode}` : failure.error;
+    return `- ${failure.url}：${reason}`;
+  });
+  throw new Error(
+    [`GitHub Release v${version} 缺少可下載的 npm 原生資產：`, ...details].join('\n'),
+  );
+}
+
+async function main() {
+  const version = verifyMetadata();
+  const urls = await verifyReleaseAssets({ version });
+  console.log(`npm 發布檢查通過：adoctl ${version}，共 ${urls.length} 個 Release 資產。`);
 }
 
 if (require.main === module) {
-  try {
-    main();
-  } catch (error) {
+  main().catch((error) => {
     console.error(error.message);
     process.exit(1);
-  }
+  });
 }
 
 module.exports = {
+  checkUrl,
   cargoVersion,
-  verifyPackage,
+  expectedReleaseUrls,
+  verifyMetadata,
+  verifyReleaseAssets,
 };

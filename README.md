@@ -43,7 +43,7 @@ adoctl --version
 adoctl --help
 ```
 
-npm 套件包含 Windows x64、Linux GNU x64、Linux musl x64、Linux GNU ARM64、macOS Intel 與 macOS Apple Silicon 六種原生執行檔。JavaScript wrapper 只負責選擇目前平台的 Rust binary 並原樣轉交參數。
+npm 套件支援 Windows x64、Linux GNU x64、Linux musl x64、Linux GNU ARM64、macOS Intel 與 macOS Apple Silicon。第一次執行 `adoctl` 時，wrapper 會從同版本的公開 GitHub Release 下載目前平台的壓縮檔、驗證 `SHA256SUMS` 後保存至使用者 cache；後續執行會直接啟動 Rust binary 並原樣轉交參數。
 
 Linux 會自動判斷 GNU 或 musl；必要時可明確指定：
 
@@ -53,6 +53,12 @@ ADOCTL_LIBC=musl adoctl --version
 ```
 
 `ADOCTL_LIBC` 只接受 `gnu` 或 `musl`。尚未提供 Windows ARM64 與 Linux ARM64 musl。
+
+可用 `ADOCTL_CACHE_DIR` 覆寫 binary cache 位置：
+
+```sh
+ADOCTL_CACHE_DIR=/opt/adoctl-cache adoctl --version
+```
 
 ### 從 Rust 原始碼安裝
 
@@ -416,14 +422,14 @@ make run ARGS="--org miniasp pool list"
 make package TARGET=x86_64-apple-darwin
 make package-all
 make npm-test
-make npm-prepare NPM_ARTIFACTS_DIR=npm/.artifacts
+make npm-verify-assets
 make npm-pack
-make npm-install-local NPM_ARTIFACTS_DIR=npm/.artifacts
+make npm-install-local
 ```
 
 `make test` 與 `make ci` 都沿用 `cargo xtask` 的品質檢查流程；`make test-unit` 只執行 workspace 測試。
 
-`make npm-install-local` 會驗證 GitHub Release 資產、建立含六平台 binary 的 npm tarball，再以 npm 安裝至 `~/.local/bin/adoctl`。
+`make npm-install-local` 會驗證七個公開 GitHub Release 資產、建立薄封裝 npm tarball、以 npm 安裝至 `~/.local/bin/adoctl`，再執行版本檢查並下載目前平台的 binary。
 
 GitHub Actions 會在下列情況執行相同的 Rust 與 npm 品質檢查：
 
@@ -495,11 +501,11 @@ git push origin v0.1.0
    - macOS Apple Silicon。
 4. 驗證封裝內的 `adoctl --version`。
 5. 產生 `SHA256SUMS`，並使用 CHANGELOG 對應版本內容建立 GitHub Release。
-6. 重新驗證 Release checksum 與六平台 binary。
-7. 使用 npm Trusted Publishing 的 OIDC 短效權限發布 `adoctl`，不使用 `NPM_TOKEN`。
+6. 確認六個壓縮檔與 `SHA256SUMS` 均可公開下載。
+7. 使用 npm Trusted Publishing 的 OIDC 短效權限發布 `adoctl`，不使用 `NPM_TOKEN`，並由 npm 自動產生 provenance。
 
 含預發布識別碼的 Cargo 版本，例如 `0.2.0-beta.1`，應使用 `v0.2.0-beta.1` 標籤；GitHub Release 會自動標示為 prerelease。
 
-repository 目前是私有 repository。npm Trusted Publishing 可以使用，但 npm 官方不會替私有 repository 產生 provenance；公開 npm 套件會包含 wrapper、README、CHANGELOG 與六平台 binary。
+repository 目前是公開 repository。公開 npm 套件只包含 wrapper 與文件；原生執行檔由對應版本的公開 GitHub Release 提供。
 
 首次 npm 版本必須先在本機建立套件，之後才能設定 Trusted Publisher。完整的固定值、CLI 參數、npmjs.com 欄位與初始發布順序請參閱 [npm 封裝與 Trusted Publishing](docs/npm-publishing.md)。

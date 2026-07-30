@@ -7,15 +7,14 @@
   },
   "scripts": {
     "test": "node --test tests/npm/*.test.cjs",
-    "npm:prepare": "node npm/prepare-package.cjs",
-    "npm:verify": "node npm/prepublish-check.cjs",
-    "npm:pack": "npm run npm:verify && npm pack --ignore-scripts",
-    "prepublishOnly": "npm test && npm run npm:verify"
+    "npm:verify-assets": "node npm/prepublish-check.cjs",
+    "npm:pack": "npm run npm:verify-assets && npm pack --ignore-scripts",
+    "prepublishOnly": "npm test && npm run npm:verify-assets"
   },
   "files": [
     "npm/cli.cjs",
+    "npm/download.cjs",
     "npm/platform.cjs",
-    "npm/native",
     "README.md",
     "CHANGELOG.md"
   ],

@@ -332,16 +332,12 @@ jobs:
       - name: 測試 npm wrapper
         run: npm test
 
-      - name: 下載並準備 GitHub Release 原生執行檔
+      - name: 驗證 GitHub Release 資產與 npm tarball
         env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
+          ADOCTL_RELEASE_ASSET_RETRIES: "12"
+          ADOCTL_RELEASE_ASSET_RETRY_DELAY_MS: "10000"
         run: |
-          set -euo pipefail
-          mkdir -p npm/.artifacts
-          gh release download "${GITHUB_REF_NAME}" --dir npm/.artifacts
-          npm run npm:prepare -- --artifacts npm/.artifacts
-          npm run npm:verify
+          npm run npm:verify-assets
           npm pack --dry-run --ignore-scripts
 
       - name: 發布至 npm registry

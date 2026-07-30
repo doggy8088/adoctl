@@ -181,26 +181,42 @@
 
 * * *
 
-## 公開 npm 套件無法匿名下載私有 GitHub Release
+## repository 公開後由內含 binary 改為薄封裝
 
 - 問題症狀：
   - Rust CLI npm 封裝的常見做法是在 `postinstall` 依平台下載 GitHub Release binary。
-  - `doggy8088/adoctl` 是私有 repository；公開 npm 安裝者沒有該 repository 的 GitHub 權限。
+  - 實作開始時 `doggy8088/adoctl` 是私有 repository，公開 npm 安裝者沒有 Release 權限，因此初版曾把六平台 binary 全部放入 npm tarball。
+  - 實作期間使用者通知 repository 已公開；訊息寫成 `adocli`，但 GitHub metadata 顯示實際 repository 仍是 `doggy8088/adoctl`。
 - 根因：
-  - 私有 GitHub Release asset 不是匿名公開 CDN。即使知道 tag 與檔名，未授權的 npm 使用者仍無法下載。
-  - 在公開 npm 套件內放入 repository access token 會直接洩漏敏感資訊，要求每位使用者提供 GitHub token 也不符合一般公開 CLI 安裝流程。
-- 評估過的方案：
-  - 將 repository 改為公開：與既有「維持私有」要求衝突，未採用。
-  - 建立公開 mirror 或物件儲存：會新增使用者未指定的外部服務、權限與維護成本，未採用。
-  - 建立主套件加六個平台子套件：下載效率較好，但首次必須建立及設定七個 npm 套件的 Trusted Publisher，維護與 bootstrap 成本較高。
-  - 單一 npm 套件內含六平台 binary：下載量較大，但只需要一個套件、沒有安裝期私有下載需求，採用此方案。
+  - 私有 GitHub Release 確實不能供公開 npm 匿名下載，但 repository visibility 已改變，原限制不再成立。
+  - 若繼續發布內含六平台 binary 的 17 MB tarball，每位使用者都會下載不需要的平台，與薄封裝目標不符。
 - 修正方式：
-  - 在發布階段以 GitHub Actions 的 repository token 讀取私有 Release；該 token 只存在於 workflow，不寫入 npm tarball。
-  - binary 納入 npm tarball 前，強制驗證 `SHA256SUMS`、壓縮檔項目及擷取後 binary hash。
-  - `npm/native/` 是發布時產物並已忽略，不提交 binary 到 Git repository。
+  - 以 GitHub metadata 查核 `doggy8088/adoctl` 為 `PUBLIC`，並確認不存在 `doggy8088/adocli`。
+  - 移除發布時內含六平台 binary、manifest 與資產準備程式。
+  - 初版新增 `postinstall`，只下載目前 target 的版本化資產及 `SHA256SUMS`，通過 SHA-256 後才解壓。
+  - 發布前以 HEAD request 驗證六個壓縮檔與 `SHA256SUMS` 共七個公開 URL。
 - 維護注意事項：
-  - 若 repository 未來公開，可重新評估改回較薄的安裝期下載或平台子套件，但必須保留 checksum 驗證。
-  - 公開 npm 套件會公開 wrapper、README、CHANGELOG 與六平台 binary；私有 repository 不代表 npm tarball 內容仍為私有。
+  - repository 若再次改為私有，薄封裝會立即影響新安裝；必須在變更 visibility 前先設計公開 binary hosting。
+  - 不可只下載 checksum 卻不比對精確資產檔名；同一份 `SHA256SUMS` 內有六筆記錄。
+
+* * *
+
+## npm 12 預設阻擋 postinstall
+
+- 問題症狀：
+  - 薄封裝 tarball 在 npm 11 可完成 `postinstall`，但 npm 12.0.2 顯示 install script 被 `allowScripts` 政策阻擋。
+  - package 本身安裝成功，實際執行 `adoctl` 時卻找不到尚未下載的原生 binary。
+- 根因：
+  - npm 12 預設不執行未獲允許的 dependency install scripts；使用者必須額外提供 `--allow-scripts=adoctl` 才會執行。
+  - 把額外旗標當成標準安裝必要條件，會使 `npm install --global adoctl` 產生表面成功、實際不可用的安裝。
+- 修正方式：
+  - 完全移除 package 的 install lifecycle script。
+  - wrapper 在使用者 cache 缺少對應版本／target binary 時，以目前 Node.js 執行 `npm/download.cjs`。
+  - 下載器驗證版本化 Release asset 的 SHA-256 後，以原子 rename 放入 cache，再由 wrapper 啟動。
+  - cache 預設使用作業系統慣例，可用 `ADOCTL_CACHE_DIR` 覆寫，支援全域 npm package 目錄唯讀的情境。
+- 維護注意事項：
+  - 第一次執行需要 GitHub Release 網路連線；離線部署應先以 `ADOCTL_CACHE_DIR` 預熱相同版本與 target 的 binary。
+  - 第一次下載訊息輸出到 `stderr`，不能污染 `--output json` 的 `stdout`。
 
 * * *
 
@@ -215,8 +231,8 @@
   - 初始 package 存在後，建立指向 `doggy8088/adoctl` 與 `release.yml` 的 Trusted Publisher，允許 `npm publish`。
   - 後續版本由 `release.yml` 的 `publish-npm` job 使用 `id-token: write` 及 OIDC 發布，不保存 `NPM_TOKEN`。
 - provenance 限制：
-  - Trusted Publishing 與 provenance 是不同能力。私有 GitHub repository 可以進行 OIDC 發布，但 npm 官方目前不替私有 repository 產生 provenance。
-  - 不可把 workflow 成功或 OIDC 登入描述為已有 provenance；只有 npm registry 實際顯示 attestation 時才能宣稱。
+  - Trusted Publishing 與 provenance 是不同能力；本 repository 現已公開，配合公開 npm package、GitHub-hosted runner 與 OIDC，符合 npm 自動 provenance 條件。
+  - 仍需在實際 OIDC 發布後查核 npm registry attestation，才能把單一版本記錄為已產生 provenance。
 - 維護注意事項：
   - Trusted Publisher 的 workflow filename 只填 `release.yml`，不是完整路徑；repository 與檔名大小寫必須精確一致。
   - 若 workflow 新增 GitHub environment，npm Trusted Publisher 的 Environment name 也必須同步更新。
