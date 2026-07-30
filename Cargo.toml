@@ -1,0 +1,27 @@
+[package]
+name = "adoctl"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+members = ["xtask"]
+resolver = "3"
+
+[dependencies]
+base64 = "0.22"
+clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rpassword = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "sync", "time"] }
+url = "2"
+webbrowser = "1"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+wiremock = "0.6"
