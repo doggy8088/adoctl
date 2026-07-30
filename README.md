@@ -509,3 +509,9 @@ git push origin v0.1.0
 repository 目前是公開 repository。公開 npm 套件只包含 wrapper 與文件；原生執行檔由對應版本的公開 GitHub Release 提供。
 
 首次 npm 版本必須先在本機建立套件，之後才能設定 Trusted Publisher。完整的固定值、CLI 參數、npmjs.com 欄位與初始發布順序請參閱 [npm 封裝與 Trusted Publishing](docs/npm-publishing.md)。
+
+* * *
+
+## 授權
+
+本專案採用 [MIT License](LICENSE)，著作權人為 Will 保哥。

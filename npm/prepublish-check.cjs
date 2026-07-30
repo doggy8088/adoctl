@@ -40,6 +40,16 @@ function verifyMetadata() {
   if (packageJson.publishConfig?.access !== 'public') {
     throw new Error('package.json 的 publishConfig.access 必須是 public。');
   }
+  if (packageJson.author !== 'Will 保哥') {
+    throw new Error('package.json 的 author 必須是 Will 保哥。');
+  }
+  if (packageJson.license !== 'MIT') {
+    throw new Error('package.json 的 license 必須是 MIT。');
+  }
+  const licenseText = readFileSync(join(PACKAGE_ROOT, 'LICENSE'), 'utf8');
+  if (!licenseText.includes('MIT License') || !licenseText.includes('Will 保哥')) {
+    throw new Error('LICENSE 必須是以 Will 保哥為著作權人的 MIT License。');
+  }
   if (packageJson.scripts?.postinstall) {
     throw new Error('npm 12 預設阻擋 install scripts；package.json 不應設定 postinstall。');
   }

@@ -171,7 +171,7 @@ jobs:
 
           mkdir -p release-package release-assets
           cp "dist/adoctl-${TARGET}" release-package/adoctl
-          cp README.md CHANGELOG.md release-package/
+          cp README.md CHANGELOG.md LICENSE release-package/
           chmod +x release-package/adoctl
 
           actual_version="$(release-package/adoctl --version)"
@@ -188,7 +188,8 @@ jobs:
             -C release-package \
             adoctl \
             README.md \
-            CHANGELOG.md
+            CHANGELOG.md \
+            LICENSE
 
       - name: 驗證與封裝 Windows binary
         if: runner.os == 'Windows'
@@ -196,7 +197,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force release-package, release-assets | Out-Null
           Copy-Item "dist/adoctl-$env:TARGET.exe" "release-package/adoctl.exe"
-          Copy-Item README.md, CHANGELOG.md release-package/
+          Copy-Item README.md, CHANGELOG.md, LICENSE release-package/
 
           $actualVersion = & "release-package/adoctl.exe" --version
           $expectedVersion = "adoctl $env:VERSION"

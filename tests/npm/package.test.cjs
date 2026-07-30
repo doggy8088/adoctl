@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { mkdtempSync, writeFileSync } = require('node:fs');
+const { mkdtempSync, readFileSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join } = require('node:path');
 const test = require('node:test');
@@ -23,8 +23,16 @@ const {
 } = require('../../npm/platform.cjs');
 const {
   expectedReleaseUrls,
+  verifyMetadata,
   verifyReleaseAssets,
 } = require('../../npm/prepublish-check.cjs');
+
+test('發布 metadata 與 MIT 授權檔保持一致', () => {
+  assert.equal(verifyMetadata(), '0.1.1');
+  const license = readFileSync(join(__dirname, '..', '..', 'LICENSE'), 'utf8');
+  assert.match(license, /^MIT License$/m);
+  assert.match(license, /^Copyright \(c\) 2026 Will 保哥$/m);
+});
 
 test('將六種支援平台映射至 Rust target', () => {
   assert.equal(cargoTarget('darwin', 'arm64'), 'aarch64-apple-darwin');

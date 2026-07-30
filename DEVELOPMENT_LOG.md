@@ -433,3 +433,30 @@
   - 解碼 Registry attestation 後，來源明確為 `https://github.com/doggy8088/adoctl`、`.github/workflows/release.yml` 與 `refs/tags/v0.1.1`。
   - builder 為 GitHub-hosted Actions runner，invocation ID 對應 release run `30568829077`。
   - 從 npm Registry 全新安裝 `adoctl@0.1.1`，首次下載與 SHA-256 驗證成功；連續執行版本命令確認 cache reuse 正常。
+
+* * *
+
+## MIT 授權與發布 metadata 同步
+
+- 技術決策：
+  - 依著作權人指定，專案改採標準 MIT License，著作權人為 `Will 保哥`，年份使用授權建立年份 `2026`。
+  - `LICENSE` 保留 MIT 標準英文條文，不翻譯或改寫法律條款。
+- 受影響範圍：
+  - `Cargo.toml` 新增 `authors = ["Will 保哥"]` 與 `license = "MIT"`。
+  - `package.json` 將 author 更新為 `Will 保哥`、license 由 `UNLICENSED` 改為 `MIT`，並把 `LICENSE` 納入 npm files allowlist。
+  - `package-lock.json` 的根套件 license 同步為 `MIT`。
+  - GitHub Actions 的 Unix tar.gz 與 Windows ZIP 封裝都加入 `LICENSE`。
+  - README、CHANGELOG 與 npm 發布文件同步說明 MIT 授權。
+- 防止回歸：
+  - npm 發布前檢查會拒絕錯誤的 author、license，或缺少 MIT 標題與著作權人的 `LICENSE`。
+  - Node.js 測試直接驗證 npm metadata、MIT 標題及著作權行。
+- 驗證結果：
+  - `cargo xtask ci` 通過格式、Clippy 與 55 項 Rust 測試。
+  - npm 9 項測試通過；新增測試已驗證 author、MIT license 與著作權行。
+  - `npm run npm:verify-assets` 通過六平台壓縮檔及 `SHA256SUMS` 共七個公開資產。
+  - `cargo metadata --no-deps` 已確認 `license = "MIT"` 與 `authors = ["Will 保哥"]`。
+  - `npm pack --json --dry-run --ignore-scripts` 顯示七個檔案，包含 `LICENSE`，壓縮大小約 12.5 kB。
+  - GitHub Actions workflow 通過 YAML parser，`git diff --check` 無格式錯誤。
+- 發布注意事項：
+  - 已發布的 npm `adoctl@0.1.1` 不可覆寫；Registry 要到下一個新版本發布後才會顯示 MIT metadata 與包含 `LICENSE` 的 tarball。
+  - 已建立的 GitHub Release `v0.1.1` 不回溯改寫；後續標籤版本才會在所有平台壓縮檔包含 `LICENSE`。

@@ -50,6 +50,8 @@ ADOCTL_LIBC=musl adoctl --version
 | npm access | `public` | 首次發布明確使用 `--access public`。 |
 | npm 初始版本 | `0.1.0` | 與 Cargo 版本及 GitHub tag `v0.1.0` 一致。 |
 | npm package owner | `willh` | 首次發布時目前登入的 npm 帳號。 |
+| npm package author | `Will 保哥` | 與 Cargo authors 及 MIT 著作權人一致。 |
+| npm license | `MIT` | npm tarball 與 GitHub Release 封裝都必須包含 `LICENSE`。 |
 | GitHub organization 或 user | `doggy8088` | Trusted Publisher 的 repository owner。 |
 | GitHub repository | `adoctl` | 只填 repository 名稱，不含 owner。 |
 | Workflow filename | `release.yml` | 只填檔名，不填 `.github/workflows/`。 |

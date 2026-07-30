@@ -16,7 +16,8 @@
     "npm/download.cjs",
     "npm/platform.cjs",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"
@@ -31,8 +32,8 @@
     "cli",
     "rust"
   ],
-  "author": "willh",
-  "license": "UNLICENSED",
+  "author": "Will 保哥",
+  "license": "MIT",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

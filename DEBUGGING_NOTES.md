@@ -242,3 +242,19 @@
   - Trusted Publisher 的 workflow filename 只填 `release.yml`，不是完整路徑；repository 與檔名大小寫必須精確一致。
   - 若 workflow 新增 GitHub environment，npm Trusted Publisher 的 Environment name 也必須同步更新。
   - 建立 OIDC 信任並驗證成功後，應把 npm Publishing access 改為要求 2FA 並禁止傳統 token。
+
+* * *
+
+## 新增 MIT 授權時的多處 metadata 漂移
+
+- 問題症狀：
+  - 專案先前沒有 `LICENSE`；npm metadata 明確使用 `UNLICENSED`，Cargo metadata 則沒有 license 與 authors。
+  - Release workflow 只封裝 README 與 CHANGELOG，即使只新增根目錄 `LICENSE`，各平台下載檔仍不會自動包含授權條款。
+- 根因：
+  - Cargo、npm package、npm lockfile 與 GitHub Release archive 是彼此獨立的發布表面，新增單一檔案不會自動同步其他 metadata。
+- 修正方式：
+  - 同步更新 Cargo、npm、lockfile、README、CHANGELOG、發布文件及兩種 Release archive。
+  - 在 npm 發布前檢查與 Node.js 測試加入 author、license 及授權檔內容驗證。
+- 維護注意事項：
+  - npm 已發布版本不可覆寫；授權 metadata 變更只能隨新版本發布。
+  - 未來變更著作權人或授權條款時，必須同步檢查 Cargo、npm、lockfile、Release workflow 與封裝內容。
