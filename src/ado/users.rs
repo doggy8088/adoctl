@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    access_level::AccessLevel,
+    access_level::{AccessLevel, AssignableAccessLevel},
     ado::client::AdoClient,
     config::AdoService,
     debug,
@@ -9,7 +9,8 @@ use crate::{
     identity::UserIdentifier,
 };
 
-const USER_ENTITLEMENTS_API_VERSION: &str = "7.1-preview.4";
+const USER_ENTITLEMENTS_LIST_API_VERSION: &str = "7.1-preview.4";
+const USER_ENTITLEMENTS_API_VERSION: &str = "7.1";
 const USER_ENTITLEMENTS_PAGE_SIZE: usize = 100;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -76,6 +77,17 @@ pub struct AdoUser {
 pub struct AccessLevelInfo {
     #[serde(default)]
     pub account_license_type: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub licensing_source: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub msdn_license_type: String,
+    #[serde(
+        default,
+        rename = "githubLicenseType",
+        alias = "gitHubLicenseType",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub github_license_type: String,
     #[serde(default)]
     pub license_display_name: String,
     #[serde(default)]
@@ -128,7 +140,7 @@ pub async fn list_users(
                 AdoService::Entitlements,
                 "_apis/userentitlements",
                 &[
-                    ("api-version", USER_ENTITLEMENTS_API_VERSION.into()),
+                    ("api-version", USER_ENTITLEMENTS_LIST_API_VERSION.into()),
                     ("top", USER_ENTITLEMENTS_PAGE_SIZE.to_string()),
                     ("skip", skip.to_string()),
                 ],
@@ -153,7 +165,12 @@ pub async fn list_users(
         .into_iter()
         .filter(|user| {
             access_level.is_none_or(|level| {
-                level.matches_api_value(&user.access_level.account_license_type)
+                level.matches_api_values(
+                    &user.access_level.account_license_type,
+                    &user.access_level.licensing_source,
+                    &user.access_level.msdn_license_type,
+                    &user.access_level.github_license_type,
+                )
             })
         })
         .filter(|user| {
@@ -217,7 +234,7 @@ pub async fn get_user_by_upn(client: &AdoClient, upn: &str) -> Result<UserEntitl
 pub async fn set_access_level(
     client: &AdoClient,
     identifier: &UserIdentifier,
-    access_level: AccessLevel,
+    access_level: AssignableAccessLevel,
 ) -> Result<UserEntitlement> {
     let user = get_user(client, identifier).await?;
     let patch = vec![JsonPatchOperation {
@@ -225,11 +242,12 @@ pub async fn set_access_level(
         path: "/accessLevel",
         value: AccessLevelPatch {
             account_license_type: access_level.api_account_license_type(),
-            licensing_source: "account",
+            licensing_source: access_level.api_licensing_source(),
+            msdn_license_type: access_level.api_msdn_license_type(),
         },
     }];
 
-    client
+    let response: UserEntitlementsPatchResponse = client
         .patch_json(
             AdoService::Entitlements,
             &format!("_apis/userentitlements/{}", user.id),
@@ -237,7 +255,15 @@ pub async fn set_access_level(
             &patch,
             Some("application/json-patch+json"),
         )
-        .await
+        .await?;
+
+    Ok(response.user_entitlement)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UserEntitlementsPatchResponse {
+    user_entitlement: UserEntitlement,
 }
 
 #[derive(Debug, Serialize)]
@@ -252,6 +278,8 @@ struct JsonPatchOperation<'a> {
 struct AccessLevelPatch<'a> {
     account_license_type: &'a str,
     licensing_source: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    msdn_license_type: Option<&'a str>,
 }
 
 fn first_non_empty<'a>(values: impl IntoIterator<Item = &'a str>) -> String {

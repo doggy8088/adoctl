@@ -155,3 +155,32 @@ fn user_selector_requires_upn_or_id() {
         .failure()
         .stderr(contains("缺少必要參數"));
 }
+
+#[test]
+fn user_set_access_help_lists_every_directly_assignable_access_level() {
+    let mut command = Command::cargo_bin("adoctl").unwrap();
+    command
+        .args(["user", "set-access", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("stakeholder"))
+        .stdout(contains("basic"))
+        .stdout(contains("express"))
+        .stdout(contains("basic-test-plans"))
+        .stdout(contains("advanced"))
+        .stdout(contains("visual-studio-subscriber"))
+        .stdout(contains("visual-studio-enterprise"))
+        .stdout(contains("GitHub"))
+        .stdout(contains("Enterprise 由 Azure DevOps 自動偵測"))
+        .stdout(contains("github-enterprise").not());
+}
+
+#[test]
+fn user_list_help_includes_automatically_detected_github_enterprise_filter() {
+    let mut command = Command::cargo_bin("adoctl").unwrap();
+    command
+        .args(["user", "list", "--help"])
+        .assert()
+        .success()
+        .stdout(contains("github-enterprise"));
+}

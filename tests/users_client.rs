@@ -1,5 +1,5 @@
 use adoctl::{
-    access_level::AccessLevel,
+    access_level::{AccessLevel, AssignableAccessLevel},
     ado::{client::AdoClient, users},
     auth::Authenticator,
     config::Organization,
@@ -10,7 +10,7 @@ use assert_cmd::Command;
 use predicates::str::contains;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
-    matchers::{header_exists, method, path, query_param},
+    matchers::{body_json, header_exists, method, path, query_param},
 };
 
 fn test_client(server: &MockServer) -> AdoClient {
@@ -256,12 +256,14 @@ async fn get_user_by_upn_requires_exact_match() {
     assert_eq!(result.id, "1");
 }
 
-#[tokio::test]
-async fn set_access_level_uses_json_patch() {
+async fn assert_set_access_level_request(
+    access_level: AssignableAccessLevel,
+    expected_access_level: serde_json::Value,
+) {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/_apis/userentitlements/1"))
-        .and(query_param("api-version", "7.1-preview.4"))
+        .and(query_param("api-version", "7.1"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "id": "1",
             "user": {
@@ -277,26 +279,86 @@ async fn set_access_level_uses_json_patch() {
 
     Mock::given(method("PATCH"))
         .and(path("/_apis/userentitlements/1"))
-        .and(query_param("api-version", "7.1-preview.4"))
+        .and(query_param("api-version", "7.1"))
+        .and(body_json(serde_json::json!([
+            {
+                "op": "replace",
+                "path": "/accessLevel",
+                "value": expected_access_level.clone()
+            }
+        ])))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "id": "1",
-            "user": {
-                "principalName": "will@example.com"
-            },
-            "accessLevel": {
-                "accountLicenseType": "stakeholder"
+            "isSuccess": true,
+            "userEntitlement": {
+                "id": "1",
+                "user": {
+                    "principalName": "will@example.com"
+                },
+                "accessLevel": expected_access_level
             }
         })))
+        .expect(1)
         .mount(&server)
         .await;
 
     let result = users::set_access_level(
         &test_client(&server),
         &UserIdentifier::Id("1".into()),
-        AccessLevel::Stakeholder,
+        access_level,
     )
     .await
     .unwrap();
 
-    assert_eq!(result.access_level.account_license_type, "stakeholder");
+    assert_eq!(
+        result.access_level.account_license_type,
+        access_level.api_account_license_type()
+    );
+    server.verify().await;
+}
+
+#[tokio::test]
+async fn set_access_level_uses_official_json_patch_mapping_for_every_assignable_level() {
+    let cases = [
+        (
+            "stakeholder".parse().unwrap(),
+            serde_json::json!({
+                "accountLicenseType": "stakeholder",
+                "licensingSource": "account"
+            }),
+        ),
+        (
+            "basic".parse().unwrap(),
+            serde_json::json!({
+                "accountLicenseType": "express",
+                "licensingSource": "account"
+            }),
+        ),
+        (
+            "basic-test-plans".parse().unwrap(),
+            serde_json::json!({
+                "accountLicenseType": "advanced",
+                "licensingSource": "account"
+            }),
+        ),
+        (
+            "visual-studio-subscriber".parse().unwrap(),
+            serde_json::json!({
+                "accountLicenseType": "none",
+                "licensingSource": "msdn",
+                "msdnLicenseType": "eligible"
+            }),
+        ),
+        (
+            "visual-studio-enterprise".parse().unwrap(),
+            serde_json::json!({
+                "accountLicenseType": "none",
+                "licensingSource": "msdn",
+                "msdnLicenseType": "enterprise"
+            }),
+        ),
+    ];
+
+    for (access_level, expected_access_level) in cases {
+        assert_set_access_level_request(access_level, expected_access_level).await;
+    }
 }

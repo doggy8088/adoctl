@@ -90,3 +90,26 @@
   - 修正方式：在執行 Rust 品質檢查前，以 apt 安裝 `libdbus-1-dev` 與 `pkg-config`。
   - 平台差異：macOS 本機使用 Apple 原生 credential store，不會建置相同的 Linux D-Bus 路徑；因此 CI 涉及原生系統相依套件時，必須以實際 runner 結果為準。
   - 驗證結果：修正後的 GitHub Actions run `30558727576` 在 Ubuntu runner 通過全部步驟。
+
+* * *
+
+## accessLevel 選項與 REST 版本落差
+
+- 問題症狀：
+  - REST schema 的 `AccountLicenseType` 列舉值多於 Azure DevOps 產品介面公開的 access level，不能直接把所有 enum 值平鋪成 `--access-level`。
+  - GitHub Enterprise 出現在最新 access level mapping，但專案原本使用的 `7.1-preview.4` 與公開 REST 7.1 schema 都沒有 `gitHubLicenseType` 或 `licensingSource=gitHub`。
+  - 官方 PATCH response 是 `UserEntitlementsPatchResponse` wrapper，原實作卻直接反序列化成 `UserEntitlement`。
+- 根因：
+  - `AccountLicenseType`、`LicensingSource`、`MsdnLicenseType`、`GitHubLicenseType` 與產品 access level 是不同層次；一個公開 access level 可能需要多欄位組合。
+  - REST schema 保留內部值、sentinel 與缺乏現行公開語意的相容性值，列舉存在不等於可安全直接指派。
+  - GitHub Enterprise 欄位直到官方 `7.2-preview.5` schema 才出現，而且官方仍沒有手動 PATCH GitHub Enterprise 的 request 範例。
+- 修正方式：
+  - 查詢使用 `AccessLevel`，涵蓋六種公開顯示層級。
+  - 更新使用獨立的 `AssignableAccessLevel`，只涵蓋五種具備公開 request mapping 的層級。
+  - GitHub Enterprise 僅供 `user list` 過濾；不對 `user set-access` 宣稱無法驗證的能力。
+  - 單一使用者 GET／PATCH 採 REST 7.1，並依官方 wrapper 解析成功回應。
+- 維護注意事項：
+  - 新增 access level 前，必須同時確認產品層級、欄位組合、API version、可寫入性及實際授權驗證方式。
+  - `earlyAdopter` 是 Microsoft 內部值；`none` 不是獨立層級；`professional` 查無足夠官方資料說明現行權益，不得自行推定。
+  - Visual Studio 與 GitHub Enterprise 權益會由服務驗證；CLI request 成功不能被描述為建立訂閱。
+  - 群組規則或外部訂閱可能影響最終有效層級，降低直接指派不保證立即降低有效權益。

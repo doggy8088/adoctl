@@ -3,7 +3,9 @@ use std::{fmt, str::FromStr};
 use clap::{ArgAction, Args, CommandFactory, Parser, Subcommand, error::ErrorKind};
 
 use crate::{
-    access_level::AccessLevel, pool_type::PoolTypeFilter, project_state::ProjectStateFilter,
+    access_level::{AccessLevel, AssignableAccessLevel},
+    pool_type::PoolTypeFilter,
+    project_state::ProjectStateFilter,
 };
 
 pub const ROOT_HELP_TEMPLATE: &str =
@@ -216,7 +218,7 @@ pub struct UsersListArgs {
     #[arg(
         long = "access-level",
         value_name = "等級",
-        help = "依 accessLevel 過濾；可用值：stakeholder、basic、basic-test-plans"
+        help = "依 accessLevel 過濾；可用值：stakeholder、basic（別名 express）、basic-test-plans（別名 advanced）、visual-studio-subscriber、visual-studio-enterprise、github-enterprise"
     )]
     pub access_level: Option<AccessLevel>,
 
@@ -245,9 +247,9 @@ pub struct UsersSetAccessArgs {
     #[arg(
         long = "access-level",
         value_name = "等級",
-        help = "要設定的 accessLevel；可用值：stakeholder、basic、basic-test-plans"
+        help = "要設定的 accessLevel；可用值：stakeholder、basic（別名 express）、basic-test-plans（別名 advanced）、visual-studio-subscriber、visual-studio-enterprise；GitHub Enterprise 由 Azure DevOps 自動偵測"
     )]
-    pub access_level: AccessLevel,
+    pub access_level: AssignableAccessLevel,
 }
 
 #[derive(Debug, Clone, Subcommand)]

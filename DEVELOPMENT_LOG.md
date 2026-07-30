@@ -184,3 +184,58 @@
   - 本機 YAML 語法解析與 `git diff --check` 通過。
   - 本機 `cargo xtask ci` 通過，包含格式檢查、Clippy 零警告與 50 項測試。
   - GitHub Actions run [`30558727576`](https://github.com/doggy8088/ado-manager/actions/runs/30558727576) 已在 Ubuntu runner 通過全部步驟，執行時間 2 分 9 秒。
+
+* * *
+
+## README 命令參考與 accessLevel 完整支援
+
+- README 已為所有現有命令補上用途、語法、重要選項及可複製範例：
+  - `login`
+  - `user list`
+  - `user get`
+  - `user set-access`
+  - `project list`
+  - `project add-user`
+  - `project remove-user`
+  - `pool list`
+  - `pool agents`
+  - `pool jobs`
+- 官方資料查核：
+  - 研究結果保存於 `docs/research/azure-devops-access-levels.md`，只引用 Microsoft Learn、Microsoft 官方 REST 規格與 Microsoft／Azure 官方 repository。
+  - 現行公開 access level 包含 Stakeholder、Basic、Basic + Test Plans、Visual Studio Subscriber、Visual Studio Enterprise 與 GitHub Enterprise。
+  - REST `AccountLicenseType` 原始 enum 另有 `none`、`earlyAdopter` 與 `professional`；`none` 是複合 mapping 使用的 sentinel，`earlyAdopter` 明訂為 Microsoft 內部值，`professional` 在目前官方程式化 mapping 查無公開語意，因此不列為一般 CLI 選項。
+- CLI 型別與行為：
+  - `AccessLevel` 支援六種公開層級，用於 `user list --access-level` 過濾。
+  - `AssignableAccessLevel` 只允許五種具有公開、可驗證直接指派 mapping 的層級，供 `user set-access` 使用。
+  - `express` 作為 `basic` 的官方 API 別名，`advanced` 作為 `basic-test-plans` 的官方 API 別名；help 與 README 同時列出 canonical 名稱及別名。
+  - `github-enterprise` 只支援查詢過濾，不允許直接設定。Azure DevOps 會在登入後自動偵測 GitHub Enterprise 權益；REST 7.1 尚無 `gitHubLicenseType`，7.2-preview.5 雖有 schema 欄位，但官方沒有 GitHub Enterprise PATCH request 範例。
+- API mapping：
+  - Stakeholder：`accountLicenseType=stakeholder`、`licensingSource=account`。
+  - Basic：`accountLicenseType=express`、`licensingSource=account`。
+  - Basic + Test Plans：`accountLicenseType=advanced`、`licensingSource=account`。
+  - Visual Studio Subscriber：`accountLicenseType=none`、`licensingSource=msdn`、`msdnLicenseType=eligible`。
+  - Visual Studio Enterprise：`accountLicenseType=none`、`licensingSource=msdn`、`msdnLicenseType=enterprise`。
+- API client 調整：
+  - `user list` 保留既有 `7.1-preview.4` 分頁契約。
+  - 單一使用者 GET 與 PATCH 改用官方穩定的 REST `7.1`。
+  - PATCH response 依官方 `UserEntitlementsPatchResponse.userEntitlement` wrapper 反序列化，不再假設 response 是裸 `UserEntitlement`。
+  - `AccessLevelInfo` 新增 `licensingSource`、`msdnLicenseType` 與 `githubLicenseType` 型別化欄位，使訂閱型 access level 可正確過濾。
+- 受影響檔案：
+  - `src/access_level.rs`
+  - `src/ado/users.rs`
+  - `src/cli.rs`
+  - `tests/cli_help.rs`
+  - `tests/users_client.rs`
+  - `README.md`
+  - `docs/research/azure-devops-access-levels.md`
+  - `DEVELOPMENT_LOG.md`
+  - `DEBUGGING_NOTES.md`
+- 測試策略：
+  - 單元測試驗證六種公開 access level 的解析及 API response matching。
+  - 單元測試確認 `none`、`earlyAdopter`、`professional` 不會成為一般選項，且 GitHub Enterprise 不可直接設定。
+  - CLI help 測試分別驗證 `user list` 的六種過濾值及 `user set-access` 的五種可設定值。
+  - mock server 測試逐一驗證五種可設定層級的 JSON Patch request shape、REST 7.1 query 與 wrapped response。
+- 驗證結果：
+  - `git diff --check` 通過。
+  - `cargo xtask test` 通過，包含格式檢查、Clippy 零警告與全部 55 項測試。
+  - 五種可直接設定的 access level 均已驗證 REST 7.1 JSON Patch request shape 與 wrapped response。
