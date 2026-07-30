@@ -178,3 +178,46 @@
 - 維護注意事項：
   - 組合多種驗證的 shell 腳本應保留各階段可辨識的輸出，不能把最後一個無關步驟的失敗誤判為先前資產校驗失敗。
   - 封裝內容規則必須與實際 archive layout 一致；若未來改為外層版本目錄，應同步調整測試與 README 安裝指令。
+
+* * *
+
+## 公開 npm 套件無法匿名下載私有 GitHub Release
+
+- 問題症狀：
+  - Rust CLI npm 封裝的常見做法是在 `postinstall` 依平台下載 GitHub Release binary。
+  - `doggy8088/adoctl` 是私有 repository；公開 npm 安裝者沒有該 repository 的 GitHub 權限。
+- 根因：
+  - 私有 GitHub Release asset 不是匿名公開 CDN。即使知道 tag 與檔名，未授權的 npm 使用者仍無法下載。
+  - 在公開 npm 套件內放入 repository access token 會直接洩漏敏感資訊，要求每位使用者提供 GitHub token 也不符合一般公開 CLI 安裝流程。
+- 評估過的方案：
+  - 將 repository 改為公開：與既有「維持私有」要求衝突，未採用。
+  - 建立公開 mirror 或物件儲存：會新增使用者未指定的外部服務、權限與維護成本，未採用。
+  - 建立主套件加六個平台子套件：下載效率較好，但首次必須建立及設定七個 npm 套件的 Trusted Publisher，維護與 bootstrap 成本較高。
+  - 單一 npm 套件內含六平台 binary：下載量較大，但只需要一個套件、沒有安裝期私有下載需求，採用此方案。
+- 修正方式：
+  - 在發布階段以 GitHub Actions 的 repository token 讀取私有 Release；該 token 只存在於 workflow，不寫入 npm tarball。
+  - binary 納入 npm tarball 前，強制驗證 `SHA256SUMS`、壓縮檔項目及擷取後 binary hash。
+  - `npm/native/` 是發布時產物並已忽略，不提交 binary 到 Git repository。
+- 維護注意事項：
+  - 若 repository 未來公開，可重新評估改回較薄的安裝期下載或平台子套件，但必須保留 checksum 驗證。
+  - 公開 npm 套件會公開 wrapper、README、CHANGELOG 與六平台 binary；私有 repository 不代表 npm tarball 內容仍為私有。
+
+* * *
+
+## npm Trusted Publishing 的首次發布循環相依
+
+- 問題症狀：
+  - 需求希望第一次就使用 Trusted Publishing，但 npm 的 Trusted Publisher 設定頁與 `npm trust` 都以既有 package 為設定對象。
+- 根因：
+  - npm 官方 `npm trust` 前置條件明確要求 package 已存在於 registry；OIDC 信任關係不能用來建立一個尚不存在的 package。
+- 修正方式：
+  - 初始 `adoctl@0.1.0` 先由已登入、具有 2FA 的 npm maintainer 在本機執行一次 `npm publish --access public`。
+  - 初始 package 存在後，建立指向 `doggy8088/adoctl` 與 `release.yml` 的 Trusted Publisher，允許 `npm publish`。
+  - 後續版本由 `release.yml` 的 `publish-npm` job 使用 `id-token: write` 及 OIDC 發布，不保存 `NPM_TOKEN`。
+- provenance 限制：
+  - Trusted Publishing 與 provenance 是不同能力。私有 GitHub repository 可以進行 OIDC 發布，但 npm 官方目前不替私有 repository 產生 provenance。
+  - 不可把 workflow 成功或 OIDC 登入描述為已有 provenance；只有 npm registry 實際顯示 attestation 時才能宣稱。
+- 維護注意事項：
+  - Trusted Publisher 的 workflow filename 只填 `release.yml`，不是完整路徑；repository 與檔名大小寫必須精確一致。
+  - 若 workflow 新增 GitHub environment，npm Trusted Publisher 的 Environment name 也必須同步更新。
+  - 建立 OIDC 信任並驗證成功後，應把 npm Publishing access 改為要求 2FA 並禁止傳統 token。

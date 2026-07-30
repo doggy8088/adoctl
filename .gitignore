@@ -1,2 +1,6 @@
 /target
 /dist
+/node_modules
+/npm/.artifacts
+/npm/native
+/adoctl-*.tgz

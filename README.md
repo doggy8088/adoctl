@@ -31,6 +31,41 @@ adoctl user get --id 00000000-0000-0000-0000-000000000000
 
 * * *
 
+## 安裝
+
+### npm registry
+
+需要 Node.js 20 以上：
+
+```sh
+npm install --global adoctl
+adoctl --version
+adoctl --help
+```
+
+npm 套件包含 Windows x64、Linux GNU x64、Linux musl x64、Linux GNU ARM64、macOS Intel 與 macOS Apple Silicon 六種原生執行檔。JavaScript wrapper 只負責選擇目前平台的 Rust binary 並原樣轉交參數。
+
+Linux 會自動判斷 GNU 或 musl；必要時可明確指定：
+
+```sh
+ADOCTL_LIBC=gnu adoctl --version
+ADOCTL_LIBC=musl adoctl --version
+```
+
+`ADOCTL_LIBC` 只接受 `gnu` 或 `musl`。尚未提供 Windows ARM64 與 Linux ARM64 musl。
+
+### 從 Rust 原始碼安裝
+
+```sh
+make install
+```
+
+`make install` 會建置並安裝至 `~/.local/bin/adoctl`。若 shell 找不到 `adoctl`，請確認 `~/.local/bin` 已加入 `PATH`。
+
+npm tarball 的首次本機封裝、隔離安裝、registry 初始發布及 Trusted Publishing 所有參數，請參閱 [npm 封裝與 Trusted Publishing](docs/npm-publishing.md)。
+
+* * *
+
 ## 共用選項
 
 基本語法：
@@ -380,19 +415,23 @@ make install
 make run ARGS="--org miniasp pool list"
 make package TARGET=x86_64-apple-darwin
 make package-all
+make npm-test
+make npm-prepare NPM_ARTIFACTS_DIR=npm/.artifacts
+make npm-pack
+make npm-install-local NPM_ARTIFACTS_DIR=npm/.artifacts
 ```
 
 `make test` 與 `make ci` 都沿用 `cargo xtask` 的品質檢查流程；`make test-unit` 只執行 workspace 測試。
 
-`make install` 會建置並安裝至 `~/.local/bin/adoctl`。若 shell 找不到 `adoctl`，請確認 `~/.local/bin` 已加入 `PATH`。
+`make npm-install-local` 會驗證 GitHub Release 資產、建立含六平台 binary 的 npm tarball，再以 npm 安裝至 `~/.local/bin/adoctl`。
 
-GitHub Actions 會在下列情況執行相同的 `cargo xtask ci` 品質檢查：
+GitHub Actions 會在下列情況執行相同的 Rust 與 npm 品質檢查：
 
 - 推送至 `main`。
 - 建立或更新 pull request。
 - 從 GitHub Actions 頁面手動觸發。
 
-CI 使用 Ubuntu runner 與 Rust stable toolchain，依序檢查格式、執行 Clippy 並跑完全部 workspace 測試。
+CI 使用 Ubuntu runner、Rust stable、Node.js 24 與 npm 12，依序檢查格式、執行 Clippy、跑完 workspace 測試、npm wrapper 測試及 npm tarball 清單檢查。
 
 * * *
 
@@ -435,7 +474,7 @@ cargo xtask package --all-default-targets
 - 說明這個版本新增的功能。
 ```
 
-發布前必須同步更新 `Cargo.toml` 的 `package.version`。標籤固定使用 `v<版本>`，而且必須與 Cargo 版本完全一致：
+發布前必須同步更新 `Cargo.toml`、`package.json`、`package-lock.json` 與 CHANGELOG 的版本。標籤固定使用 `v<版本>`，而且必須與 Cargo 及 npm 版本完全一致：
 
 ```sh
 git push origin main
@@ -456,5 +495,11 @@ git push origin v0.1.0
    - macOS Apple Silicon。
 4. 驗證封裝內的 `adoctl --version`。
 5. 產生 `SHA256SUMS`，並使用 CHANGELOG 對應版本內容建立 GitHub Release。
+6. 重新驗證 Release checksum 與六平台 binary。
+7. 使用 npm Trusted Publishing 的 OIDC 短效權限發布 `adoctl`，不使用 `NPM_TOKEN`。
 
 含預發布識別碼的 Cargo 版本，例如 `0.2.0-beta.1`，應使用 `v0.2.0-beta.1` 標籤；GitHub Release 會自動標示為 prerelease。
+
+repository 目前是私有 repository。npm Trusted Publishing 可以使用，但 npm 官方不會替私有 repository 產生 provenance；公開 npm 套件會包含 wrapper、README、CHANGELOG 與六平台 binary。
+
+首次 npm 版本必須先在本機建立套件，之後才能設定 Trusted Publisher。完整的固定值、CLI 參數、npmjs.com 欄位與初始發布順序請參閱 [npm 封裝與 Trusted Publishing](docs/npm-publishing.md)。

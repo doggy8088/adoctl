@@ -354,3 +354,51 @@
   - 五個 tar.gz 均且僅包含根目錄下的 `adoctl`、`README.md`、`CHANGELOG.md`。
   - Windows ZIP 均且僅包含根目錄下的 `adoctl.exe`、`README.md`、`CHANGELOG.md`。
   - 不在本機執行不同作業系統或架構的 binary；各平台 runner 已在封裝前原生執行 `adoctl --version`，並確認輸出為 `adoctl 0.1.0`。
+
+* * *
+
+## npm wrapper 與 Trusted Publishing
+
+- npm 套件定位：
+  - 套件名稱為未加 scope 的公開套件 `adoctl`，初始版本與 Cargo、GitHub tag 維持 `0.1.0`。
+  - `package.json` 的 repository 固定為 `git+https://github.com/doggy8088/adoctl.git`，供 npm OIDC 比對。
+  - 消費端最低 Node.js 版本為 20；GitHub Actions 發布環境固定使用 Node.js `24.18.0` 與 npm `12.0.2`。
+  - license 明確標記為 `UNLICENSED`，沒有在 repository 私有的情況下推定或新增授權條款。
+- 私有 repository 的封裝決策：
+  - 公開 npm 使用者無法匿名下載私有 GitHub Release，因此沒有採用 npm `postinstall` 向 GitHub 下載 binary 的模式。
+  - 沒有擅自把 GitHub repository 改為公開，也沒有建立需求外的公開 mirror 或檔案儲存服務。
+  - 發布階段改為從私有 GitHub Release 下載、驗證並擷取六平台 binary，再與 JavaScript wrapper 一起放入單一 npm tarball。
+  - 單一套件會讓每位使用者下載全部六個 binary，但只需維護一個 npm package 與一組 Trusted Publisher，不必首次建立七個主套件／平台子套件。
+- wrapper 與平台選擇：
+  - `npm/platform.cjs` 對映 macOS ARM64／x64、Linux GNU ARM64、Linux GNU／musl x64、Windows x64 六種 Rust target。
+  - Linux 預設使用 Node.js runtime report 判斷 glibc；可用 `ADOCTL_LIBC=gnu` 或 `ADOCTL_LIBC=musl` 明確覆寫。
+  - 不支援的平台會回報包含作業系統、CPU 架構與 libc 的繁體中文錯誤，不會靜默退回錯誤 binary。
+  - `npm/cli.cjs` 使用 `spawnSync` 直接啟動原生執行檔並原樣轉交參數，不經過 shell。
+- 發布資產準備與完整性：
+  - `npm/prepare-package.cjs` 要求六個既有 GitHub Release 壓縮檔及單一 `SHA256SUMS`。
+  - checksum 清單必須精確對應六個預期檔名；每個壓縮檔的 SHA-256 都要通過。
+  - 每個封裝必須且只能包含 `adoctl`／`adoctl.exe`、`README.md`、`CHANGELOG.md` 三個根目錄項目。
+  - 產生的 `npm/native/MANIFEST.json` 記錄版本、來源壓縮檔、壓縮檔 SHA-256、binary 名稱及 binary SHA-256。
+  - `npm/prepublish-check.cjs` 會重新驗證 Cargo／npm 版本、registry、access、repository、六平台 manifest 與 binary checksum，並在目前平台執行 `adoctl --version`。
+- GitHub Actions：
+  - `ci.yml` 新增 Node.js、固定 npm 版本、`npm ci --ignore-scripts`、六項 Node.js 測試及 npm tarball allowlist 檢查。
+  - `release.yml` 在建立封裝前驗證 Cargo、npm、tag 與 CHANGELOG 版本一致。
+  - GitHub Release 成功後，`publish-npm` job 只取得 `contents: read` 與 `id-token: write`，不設定 `NPM_TOKEN`。
+  - 發布 job 重新從 GitHub Release 下載資產、準備六平台 binary、執行 npm 測試與 dry-run，再以 `npm publish` 觸發 OIDC Trusted Publishing。
+  - 穩定版本使用 npm `latest`；含預發布識別碼的版本使用 `next`。
+- Trusted Publishing 初始限制：
+  - npm 官方要求套件必須已存在，才能建立 Trusted Publisher；因此第一次 `0.1.0` 必須由本機已登入的 npm maintainer 建立。
+  - 初始版本存在後，以 `npm trust github adoctl --file release.yml --repo doggy8088/adoctl --allow-publish` 建立信任關係。
+  - repository 目前為私有；npm 官方明確說明 OIDC 發布仍可用，但不會產生 provenance attestation。
+- 文件與 Makefile：
+  - README 新增 npm 安裝、平台支援、libc 覆寫、本機封裝與發布概要。
+  - `docs/npm-publishing.md` 完整列出 npmjs.com 欄位、`npm trust` 參數、首次發布、後續標籤發布及安全限制。
+  - Makefile 新增 `npm-test`、`npm-prepare`、`npm-verify`、`npm-pack` 與 `npm-install-local`。
+- 本機驗證結果：
+  - npm registry 查詢 `adoctl` 回傳 `E404`，確認實作開始時名稱尚未存在；登入帳號為 `willh`，帳號 2FA 已啟用。
+  - 六項 Node.js 測試全部通過。
+  - 從私有 GitHub Release `v0.1.0` 下載七個資產，六個 checksum、封裝內容與 binary manifest 全部通過。
+  - npm tarball 共 12 個檔案，壓縮後約 17.0 MB、解壓後約 44.1 MB。
+  - 將 tarball 安裝至隔離 prefix 後，`adoctl --version` 輸出 `adoctl 0.1.0`，繁體中文 `--help` 正常。
+  - `npm publish --dry-run --access public` 通過，確認 registry、public access、prepublish 測試與 tarball 內容。
+  - Ruby YAML parser 與 actionlint 通過 `ci.yml`、`release.yml`。

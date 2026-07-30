@@ -8,7 +8,16 @@
 
 ## [尚未發布]
 
-尚未發布的變更請記錄於此。
+### 新增
+
+- 新增單一 `adoctl` npm wrapper，依作業系統、CPU 架構與 Linux libc 選擇六平台 Rust binary。
+- 新增 npm 初始本機封裝、安裝、首次發布與 Trusted Publishing 完整設定文件。
+- 新增 npm wrapper、平台 mapping、checksum 與封裝內容測試。
+
+### 變更
+
+- GitHub Actions CI 新增 Node.js、npm wrapper 與 npm tarball 清單驗證。
+- 標籤式發布流程新增 Cargo／npm 版本一致性檢查，並在 GitHub Release 完成後透過 OIDC Trusted Publishing 發布 npm 套件。
 
 * * *
 

@@ -1,0 +1,42 @@
+{
+  "name": "adoctl",
+  "version": "0.1.0",
+  "description": "Azure DevOps 管理 CLI 的跨平台 npm 安裝包",
+  "bin": {
+    "adoctl": "npm/cli.cjs"
+  },
+  "scripts": {
+    "test": "node --test tests/npm/*.test.cjs",
+    "npm:prepare": "node npm/prepare-package.cjs",
+    "npm:verify": "node npm/prepublish-check.cjs",
+    "npm:pack": "npm run npm:verify && npm pack --ignore-scripts",
+    "prepublishOnly": "npm test && npm run npm:verify"
+  },
+  "files": [
+    "npm/cli.cjs",
+    "npm/platform.cjs",
+    "npm/native",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doggy8088/adoctl.git"
+  },
+  "keywords": [
+    "azure-devops",
+    "ado",
+    "cli",
+    "rust"
+  ],
+  "author": "willh",
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "packageManager": "npm@12.0.2"
+}

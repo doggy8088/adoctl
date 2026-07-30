@@ -48,35 +48,56 @@ jobs:
             --no-self-update
           rustup default stable
 
-      - name: 驗證標籤、Cargo 版本與變更紀錄
+      - name: 安裝 Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.18.0"
+          package-manager-cache: false
+
+      - name: 安裝 npm 與鎖定相依套件
+        run: |
+          npm install --global npm@12.0.2
+          npm ci --ignore-scripts
+
+      - name: 驗證標籤、Cargo、npm 版本與變更紀錄
         id: version
         shell: bash
         run: |
           set -euo pipefail
 
-          version="$(
+          cargo_version="$(
             cargo metadata --no-deps --format-version 1 |
               jq -r '.packages[] | select(.name == "adoctl") | .version'
           )"
-          expected_tag="v${version}"
+          npm_version="$(node -p "require('./package.json').version")"
+          expected_tag="v${cargo_version}"
 
           if [[ "${GITHUB_REF_NAME}" != "${expected_tag}" ]]; then
             printf '標籤 %s 與 Cargo 版本 %s 不一致；預期標籤為 %s。\n' \
               "${GITHUB_REF_NAME}" \
-              "${version}" \
+              "${cargo_version}" \
               "${expected_tag}" >&2
             exit 1
           fi
 
-          if ! grep --fixed-strings --quiet "## [${version}] - " CHANGELOG.md; then
-            printf 'CHANGELOG.md 缺少版本 %s 與發布日期標題。\n' "${version}" >&2
+          if [[ "${npm_version}" != "${cargo_version}" ]]; then
+            printf 'npm 版本 %s 與 Cargo 版本 %s 不一致。\n' \
+              "${npm_version}" \
+              "${cargo_version}" >&2
             exit 1
           fi
 
-          printf 'version=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
+          if ! grep --fixed-strings --quiet "## [${cargo_version}] - " CHANGELOG.md; then
+            printf 'CHANGELOG.md 缺少版本 %s 與發布日期標題。\n' "${cargo_version}" >&2
+            exit 1
+          fi
+
+          printf 'version=%s\n' "${cargo_version}" >> "${GITHUB_OUTPUT}"
 
       - name: 執行完整 CI 檢查
-        run: cargo xtask ci
+        run: |
+          cargo xtask ci
+          npm test
 
   package:
     name: 封裝 ${{ matrix.target }}
@@ -278,3 +299,57 @@ jobs:
             --title "adoctl ${GITHUB_REF_NAME}" \
             --notes-file release-notes.md \
             "${prerelease_flags[@]}"
+
+  publish-npm:
+    name: 使用 Trusted Publishing 發布 npm
+    needs:
+      - validate
+      - release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: 取出原始碼
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: 安裝 Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.18.0"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: 安裝 npm 與鎖定相依套件
+        run: |
+          npm install --global npm@12.0.2
+          npm ci --ignore-scripts
+
+      - name: 測試 npm wrapper
+        run: npm test
+
+      - name: 下載並準備 GitHub Release 原生執行檔
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p npm/.artifacts
+          gh release download "${GITHUB_REF_NAME}" --dir npm/.artifacts
+          npm run npm:prepare -- --artifacts npm/.artifacts
+          npm run npm:verify
+          npm pack --dry-run --ignore-scripts
+
+      - name: 發布至 npm registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish_args=(--access public)
+          if [[ "${GITHUB_REF_NAME#v}" == *-* ]]; then
+            publish_args+=(--tag next)
+          fi
+          npm publish "${publish_args[@]}"

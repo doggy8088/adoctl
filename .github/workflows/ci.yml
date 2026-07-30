@@ -48,12 +48,30 @@ jobs:
             --no-self-update
           rustup default stable
 
+      - name: 安裝 Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.18.0"
+          package-manager-cache: false
+
+      - name: 安裝 npm 與鎖定相依套件
+        run: |
+          npm install --global npm@12.0.2
+          npm ci --ignore-scripts
+
       - name: 顯示工具版本
         run: |
           rustc --version
           cargo --version
           rustfmt --version
           cargo clippy --version
+          node --version
+          npm --version
 
-      - name: 執行完整 CI 檢查
+      - name: 執行 Rust 完整 CI 檢查
         run: cargo xtask ci
+
+      - name: 驗證 npm wrapper 與封裝清單
+        run: |
+          npm test
+          npm pack --dry-run --ignore-scripts

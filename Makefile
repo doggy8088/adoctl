@@ -1,9 +1,12 @@
 CARGO ?= cargo
+NPM ?= npm
 LOCAL_INSTALL_ROOT ?= $(HOME)/.local
+NPM_ARTIFACTS_DIR ?= npm/.artifacts
+NPM_INSTALL_PREFIX ?= $(HOME)/.local
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build release check fmt fmt-check clippy test test-unit ci run doc install package package-all clean
+.PHONY: help build release check fmt fmt-check clippy test test-unit ci run doc install package package-all npm-test npm-prepare npm-verify npm-pack npm-install-local clean
 
 help: ## 顯示可用的 Make targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -53,6 +56,26 @@ package: ## 打包指定平台，需設定 TARGET
 
 package-all: ## 打包全部預設平台
 	$(CARGO) xtask package --all-default-targets
+
+npm-test: ## 執行 npm wrapper 測試
+	$(NPM) test
+
+npm-prepare: ## 從 NPM_ARTIFACTS_DIR 準備六平台 npm binary
+	$(NPM) run npm:prepare -- --artifacts "$(NPM_ARTIFACTS_DIR)"
+
+npm-verify: ## 驗證 npm metadata、版本及六平台 binary
+	$(NPM) run npm:verify
+
+npm-pack: npm-verify ## 建立可發布的 npm tarball
+	$(NPM) pack --ignore-scripts
+
+npm-install-local: npm-prepare npm-pack ## 將 npm tarball 安裝至 ~/.local/bin
+	@package_name="$$(node -p "require('./package.json').name")"; \
+	package_version="$$(node -p "require('./package.json').version")"; \
+	$(NPM) install \
+		--global \
+		--prefix "$(NPM_INSTALL_PREFIX)" \
+		"./$${package_name}-$${package_version}.tgz"
 
 clean: ## 清除 Cargo 建置產物
 	$(CARGO) clean
