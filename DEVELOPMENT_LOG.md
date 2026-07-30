@@ -313,3 +313,44 @@
   - GitHub repository metadata 回報 `doggy8088/adoctl`，repository ID 維持 `R_kgDOToZB2Q`。
   - `git ls-remote --exit-code origin HEAD` 成功取得遠端 HEAD `6a0f1bcaa2d0946b7b06e4a6535a892c66079350`。
   - 專案檔案不再包含重新命名前的完整 GitHub URL。
+
+* * *
+
+## v0.1.0 遠端發布與實際驗證
+
+- Git 提交與標籤：
+  - 發布功能提交為 `f1c2b539468f6f50f2e56fa49f972350752776fe`，提交標題為 `ci(release): 建立標籤式跨平台發布流程`。
+  - 建立並推送 annotated tag `v0.1.0`；遠端 tag object 為 `d680b543cd180bd23680c7e5c4966e9c7cc90847`。
+  - `refs/tags/v0.1.0^{}` 解參照後指向發布功能提交 `f1c2b539468f6f50f2e56fa49f972350752776fe`，確認標籤沒有落在其他提交。
+- `main` 分支 CI：
+  - GitHub Actions run `30562818634` 成功，總耗時 2 分 13 秒。
+  - 遠端驗證網址：<https://github.com/doggy8088/adoctl/actions/runs/30562818634>
+- `v0.1.0` 發布 workflow：
+  - GitHub Actions run `30563047110` 成功，head SHA 與標籤提交一致。
+  - 版本、CHANGELOG 與完整品質檢查 job 成功，耗時 2 分 2 秒。
+  - 六個平台封裝 job 均成功：
+    - `x86_64-pc-windows-msvc`：5 分 12 秒。
+    - `x86_64-unknown-linux-gnu`：2 分 27 秒。
+    - `x86_64-unknown-linux-musl`：2 分 29 秒。
+    - `aarch64-unknown-linux-gnu`：1 分 54 秒。
+    - `x86_64-apple-darwin`：2 分 55 秒。
+    - `aarch64-apple-darwin`：59 秒。
+  - GitHub Release 建立 job 成功，耗時 7 秒。
+  - 遠端驗證網址：<https://github.com/doggy8088/adoctl/actions/runs/30563047110>
+- GitHub Release：
+  - 已建立非草稿、非預發布版本 `adoctl v0.1.0`。
+  - Release 網址：<https://github.com/doggy8088/adoctl/releases/tag/v0.1.0>
+  - 已發布六個平台封裝與一個校驗檔：
+    - `adoctl-v0.1.0-x86_64-pc-windows-msvc.zip`
+    - `adoctl-v0.1.0-x86_64-unknown-linux-gnu.tar.gz`
+    - `adoctl-v0.1.0-x86_64-unknown-linux-musl.tar.gz`
+    - `adoctl-v0.1.0-aarch64-unknown-linux-gnu.tar.gz`
+    - `adoctl-v0.1.0-x86_64-apple-darwin.tar.gz`
+    - `adoctl-v0.1.0-aarch64-apple-darwin.tar.gz`
+    - `SHA256SUMS`
+- 發布後獨立驗證：
+  - 使用 `gh release download` 從 GitHub Release 重新下載全部七個資產，沒有沿用 workflow 工作目錄或本機先前產物。
+  - 使用 `shasum -a 256 -c SHA256SUMS` 驗證六個壓縮檔，全部回報 `OK`。
+  - 五個 tar.gz 均且僅包含根目錄下的 `adoctl`、`README.md`、`CHANGELOG.md`。
+  - Windows ZIP 均且僅包含根目錄下的 `adoctl.exe`、`README.md`、`CHANGELOG.md`。
+  - 不在本機執行不同作業系統或架構的 binary；各平台 runner 已在封裝前原生執行 `adoctl --version`，並確認輸出為 `adoctl 0.1.0`。

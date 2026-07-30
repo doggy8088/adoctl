@@ -153,3 +153,28 @@
 - repository 重新命名後，應以新 URL 執行 `git remote set-url origin <新網址>`，再用 `git ls-remote --exit-code origin HEAD` 驗證 fetch 路徑。
 - GitHub repository 的重新命名不會自動重新命名本機 checkout 資料夾；兩者沒有 Git 技術上的相依關係。
 - 若未來搬移本機資料夾，必須先結束所有依賴舊 workspace 絕對路徑的程序，再由檔案系統層級搬移；不可在 agent 仍以舊 cwd 運作時直接改名。
+
+* * *
+
+## v0.1.0 發布後封裝內容檢查誤判
+
+- 問題症狀：
+  - 從 GitHub Release 下載的六個封裝均通過 `SHA256SUMS`，但第一版內容檢查指令仍以結束碼 1 停止。
+  - workflow 與 GitHub Release 本身均為成功，壓縮檔也可以正常列出內容。
+- 排查過程：
+  - 直接以 `tar -tzf` 與 `unzip -Z1` 列出每個封裝，不再只依賴組合腳本的最終結束碼。
+  - 確認 Unix 封裝的項目是 `adoctl`、`README.md`、`CHANGELOG.md`；Windows 封裝的項目是 `adoctl.exe`、`README.md`、`CHANGELOG.md`。
+  - 原驗證規則使用 `/adoctl$`、`/README.md$` 與 `/CHANGELOG.md$`，錯誤假設項目前方一定存在子目錄。
+- 根因：
+  - release workflow 刻意把三個檔案放在壓縮檔根目錄，項目名稱不含 `/`；因此原規則不可能比對成功。
+  - `pipefail` 不是本次誤判的根因；在查看實際封裝清單後修正先前判斷。
+- 修正方式：
+  - 改用 `^adoctl$`、`^adoctl\.exe$`、`^README\.md$` 與 `^CHANGELOG\.md$` 精確比對根目錄項目。
+  - 額外斷言每個封裝恰好包含三個項目，避免只檢查必要檔案存在卻漏掉非預期內容。
+  - 修正後六個封裝內容斷言與 SHA-256 校驗全部通過。
+- 另一項本機驗證注意事項：
+  - 驗證腳本進入下載用暫存目錄後執行 `git ls-remote origin`，因該目錄不是 Git repository 而失敗。
+  - SHA-256 與封裝內容檢查在該步驟前已全部完成；標籤查詢改回專案工作目錄後成功。
+- 維護注意事項：
+  - 組合多種驗證的 shell 腳本應保留各階段可辨識的輸出，不能把最後一個無關步驟的失敗誤判為先前資產校驗失敗。
+  - 封裝內容規則必須與實際 archive layout 一致；若未來改為外層版本目錄，應同步調整測試與 README 安裝指令。
