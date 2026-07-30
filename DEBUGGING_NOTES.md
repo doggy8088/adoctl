@@ -236,7 +236,8 @@
   - `0.1.1` 用於首次 OIDC 發布及 provenance 實測，避免把初始人工發布誤記為 Trusted Publishing。
 - provenance 限制：
   - Trusted Publishing 與 provenance 是不同能力；本 repository 現已公開，配合公開 npm package、GitHub-hosted runner 與 OIDC，符合 npm 自動 provenance 條件。
-  - 仍需在實際 OIDC 發布後查核 npm registry attestation，才能把單一版本記錄為已產生 provenance。
+  - `adoctl@0.1.1` 完成實際 OIDC 發布後，Registry 已回傳 SLSA v1 provenance。
+  - attestation 的 repository、workflow path、tag ref、GitHub-hosted builder 與 Actions invocation ID 均已比對，不能只以 workflow 成功狀態推定 provenance 存在。
 - 維護注意事項：
   - Trusted Publisher 的 workflow filename 只填 `release.yml`，不是完整路徑；repository 與檔名大小寫必須精確一致。
   - 若 workflow 新增 GitHub environment，npm Trusted Publisher 的 Environment name 也必須同步更新。

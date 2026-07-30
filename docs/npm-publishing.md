@@ -185,6 +185,8 @@ npm 版本不可覆寫或重複發布。正式執行 `npm publish` 前，必須�
 
 目前 `adoctl` 已使用下列參數建立 Trusted Publisher，並以 `npm trust list adoctl --json` 回讀確認。
 
+`adoctl@0.1.1` 已由 `.github/workflows/release.yml` 透過 OIDC 發布成功；npm Registry 的 provenance 指向 `doggy8088/adoctl`、`release.yml` 與 `refs/tags/v0.1.1`。這是 Trusted Publishing 的實際端到端驗證，不是只確認設定欄位存在。
+
 前置條件：
 
 - `adoctl` 已存在於 npm registry。
@@ -228,6 +230,8 @@ npm trust list adoctl
 - Allowed actions：勾選 `npm publish`
 
 第一次 OIDC 發布成功後，到 Settings → Publishing access 選擇「Require two-factor authentication and disallow tokens」。完成後不應建立或保存 `NPM_TOKEN`。
+
+此 Publishing access 限制與 Trusted Publisher 是兩個不同設定。npm 官方目前以 npmjs.com package Settings 作為「disallow tokens」的設定流程；不要把 `npm access set mfa=automation` 臆測成相同設定。
 
 * * *
 

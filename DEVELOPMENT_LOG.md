@@ -410,3 +410,26 @@
   - `npm publish --dry-run --access public` 通過，確認 registry、public access、prepublish 測試與薄封裝內容。
   - 從 npm Registry 全域隔離安裝 `adoctl@0.1.0` 成功；以全新 cache 第一次執行後下載並驗證 macOS ARM64 binary，`adoctl --version` 與繁體中文 `--help` 均正常。
   - Ruby YAML parser 與 actionlint 通過 `ci.yml`、`release.yml`。
+
+* * *
+
+## npm 初始發布與 Trusted Publishing 端到端驗證
+
+- 初始 Registry 建立：
+  - 以 npm 帳號 `willh` 在本機發布 `adoctl@0.1.0`，完成 Trusted Publisher 必須先有既存 package 的啟動程序。
+  - Registry metadata 已確認 `latest=0.1.0`、repository、binary entry 與 Node.js engines。
+  - 從 Registry 全域隔離安裝後，wrapper 以全新 cache 下載 `aarch64-apple-darwin` 原生執行檔，版本與繁體中文 help 均通過。
+- Trusted Publisher：
+  - 使用 `npm trust github adoctl --file release.yml --repo doggy8088/adoctl --allow-publish` 建立信任。
+  - `npm trust list adoctl --json` 回傳 GitHub 類型、`doggy8088/adoctl`、`release.yml` 與 publish 權限。
+  - GitHub Actions 沒有設定 `NPM_TOKEN`；發布 job 只使用 `id-token: write` 取得 OIDC 短效權限。
+- `v0.1.1` 實際發布：
+  - `main` CI run `30568683930` 通過後，annotated tag `v0.1.1` 指向提交 `dd00563d0820972177c71d45171995d809c7c12b`。
+  - Release run `30568829077` 的版本與品質、六平台封裝、GitHub Release 及 npm Trusted Publishing job 全部成功。
+  - GitHub Release `adoctl v0.1.1` 為正式版本，包含六個版本化平台壓縮檔與 `SHA256SUMS`。
+  - npm Registry 已確認 `adoctl@0.1.1` 且 `latest=0.1.1`；tarball 共六個檔案，未包含原生 binary。
+- provenance 查核：
+  - Registry 的 `dist.attestations` 存在，provenance predicate type 為 `https://slsa.dev/provenance/v1`。
+  - 解碼 Registry attestation 後，來源明確為 `https://github.com/doggy8088/adoctl`、`.github/workflows/release.yml` 與 `refs/tags/v0.1.1`。
+  - builder 為 GitHub-hosted Actions runner，invocation ID 對應 release run `30568829077`。
+  - 從 npm Registry 全新安裝 `adoctl@0.1.1`，首次下載與 SHA-256 驗證成功；連續執行版本命令確認 cache reuse 正常。
