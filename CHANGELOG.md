@@ -8,6 +8,10 @@
 
 ## [尚未發布]
 
+* * *
+
+## [0.1.1] - 2026-07-31
+
 ### 新增
 
 - 新增不依賴 install script 的薄封裝 `adoctl` npm wrapper，第一次執行時依作業系統、CPU 架構與 Linux libc 下載並選擇六平台 Rust binary。
@@ -48,5 +52,6 @@
 - 修正 GitHub Actions Linux runner 缺少 D-Bus 開發套件造成 Clippy 建置失敗的問題。
 - 修正 accessLevel API mapping、訂閱授權欄位及更新回應 wrapper。
 
-[尚未發布]: https://github.com/doggy8088/adoctl/compare/v0.1.0...HEAD
+[尚未發布]: https://github.com/doggy8088/adoctl/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/doggy8088/adoctl/releases/tag/v0.1.1
 [0.1.0]: https://github.com/doggy8088/adoctl/releases/tag/v0.1.0

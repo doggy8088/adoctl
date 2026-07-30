@@ -391,6 +391,9 @@
   - npm 官方要求套件必須已存在，才能建立 Trusted Publisher；因此第一次 `0.1.0` 必須由本機已登入的 npm maintainer 建立。
   - 初始版本存在後，以 `npm trust github adoctl --file release.yml --repo doggy8088/adoctl --allow-publish` 建立信任關係。
   - repository 與 npm package 都是公開，且發布 job 使用 GitHub-hosted runner 與 OIDC；符合 npm 自動建立 provenance 的條件。
+  - `adoctl@0.1.0` 已由 npm 帳號 `willh` 完成初始發布；Registry 的 `latest`、repository、binary entry 與 Node.js engines metadata 均已回讀確認。
+  - Trusted Publisher 已建立並以 `npm trust list adoctl --json` 回讀，固定為 `doggy8088/adoctl`、`release.yml` 與 publish 權限；沒有建立 `NPM_TOKEN`。
+  - `0.1.1` 作為第一個 OIDC 發布驗證版本，用來確認 GitHub Actions、GitHub Release、npm Trusted Publishing 與 provenance 的完整路徑。
 - 文件與 Makefile：
   - README 新增 npm 安裝、平台支援、libc 覆寫、本機封裝與發布概要。
   - `docs/npm-publishing.md` 完整列出 npmjs.com 欄位、`npm trust` 參數、首次發布、後續標籤發布及安全限制。
@@ -405,4 +408,5 @@
   - 最終 npm tarball 只有 wrapper、下載器、平台模組及兩份文件，共六個檔案；壓縮後約 11.7 kB、解壓後約 31.5 kB。
   - tarball 隔離安裝後，`adoctl --version` 與繁體中文 `--help` 正常。
   - `npm publish --dry-run --access public` 通過，確認 registry、public access、prepublish 測試與薄封裝內容。
+  - 從 npm Registry 全域隔離安裝 `adoctl@0.1.0` 成功；以全新 cache 第一次執行後下載並驗證 macOS ARM64 binary，`adoctl --version` 與繁體中文 `--help` 均正常。
   - Ruby YAML parser 與 actionlint 通過 `ci.yml`、`release.yml`。

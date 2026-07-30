@@ -144,6 +144,8 @@ ADOCTL_CACHE_DIR=/opt/adoctl-cache adoctl --version
 
 **npm Trusted Publisher 只能設定在已存在的套件上。** 因此第一次必須由具有套件名稱建立權限的 npm 帳號在本機發布；套件存在後才能建立 OIDC 信任關係。
 
+`adoctl@0.1.0` 已由 npm 帳號 `willh` 完成初始發布。以下命令保留作為新套件首次部署的可重複操作紀錄，不可對既有版本重複執行。
+
 先確認名稱、登入帳號與實際 tarball：
 
 ```sh
@@ -180,6 +182,8 @@ npm 版本不可覆寫或重複發布。正式執行 `npm publish` 前，必須�
 * * *
 
 ## 設定 Trusted Publisher
+
+目前 `adoctl` 已使用下列參數建立 Trusted Publisher，並以 `npm trust list adoctl --json` 回讀確認。
 
 前置條件：
 

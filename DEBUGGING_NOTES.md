@@ -230,6 +230,10 @@
   - 初始 `adoctl@0.1.0` 先由已登入、具有 2FA 的 npm maintainer 在本機執行一次 `npm publish --access public`。
   - 初始 package 存在後，建立指向 `doggy8088/adoctl` 與 `release.yml` 的 Trusted Publisher，允許 `npm publish`。
   - 後續版本由 `release.yml` 的 `publish-npm` job 使用 `id-token: write` 及 OIDC 發布，不保存 `NPM_TOKEN`。
+- 實際結果：
+  - `adoctl@0.1.0` 已完成初始發布，並從 Registry 重新安裝及執行成功。
+  - `npm trust list adoctl --json` 已確認 GitHub repository、workflow 檔名與發布權限。
+  - `0.1.1` 用於首次 OIDC 發布及 provenance 實測，避免把初始人工發布誤記為 Trusted Publishing。
 - provenance 限制：
   - Trusted Publishing 與 provenance 是不同能力；本 repository 現已公開，配合公開 npm package、GitHub-hosted runner 與 OIDC，符合 npm 自動 provenance 條件。
   - 仍需在實際 OIDC 發布後查核 npm registry attestation，才能把單一版本記錄為已產生 provenance。

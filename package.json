@@ -1,6 +1,6 @@
 {
   "name": "adoctl",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Azure DevOps 管理 CLI 的跨平台 npm 安裝包",
   "bin": {
     "adoctl": "npm/cli.cjs"
